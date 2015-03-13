@@ -13,4 +13,11 @@ public class FooTest {
             return a+b; //
         }
     }
+
+    public final CpsCallable asyncAdd = new CpsFunction(["a","b"],
+            new ReturnBlock(new FunctionCallBlock(null,
+                    new LocalVariableBlock("a"),
+                    new ConstantBlock("plus"),
+                    new LocalVariableBlock("y")
+        )));
 }
