@@ -55,6 +55,11 @@ public class Caller {
         return i.receiver != null && receiver==i.receiver.get() && method.equals(i.method) && i.args.length==2 && i.args[0].get()==arg1 && i.args[1].get()==arg2;
     }
 
+    /**
+     * Remembers how the method invocation has happened.
+     *
+     * Using {@link WeakReference} to allow objects from getting GCed.
+     */
     static class Info {
         private Reference<Object> receiver;
         private String method;
