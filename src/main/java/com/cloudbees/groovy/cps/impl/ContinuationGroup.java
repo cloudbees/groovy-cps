@@ -109,7 +109,11 @@ abstract class ContinuationGroup implements Serializable {
         try {
             Field globalClassSet = ClassInfo.class.getDeclaredField("globalClassSet");
             globalClassSet.setAccessible(true);
-            // TODO now need to find all classes
+            // TODO would be safer to clear all classes.
+            // But ClassInfoSet offers no such clear() method.
+            // Nor is there any other apparent way to find all loaded ClassInfo or MetaClassImpl instances.
+            // Using reflection to traverse the segment table looks quite tricky given its complex implementation.
+            // Anyway a breakpoint on ClassInfo.getClassInfo confirms that ArrayList is the only concrete class assignable to Iterable which is loaded by this point.
             ((ClassInfo.ClassInfoSet) globalClassSet.get(null)).remove(ArrayList.class);
         } catch (Exception x) {
             throw new ExceptionInInitializerError(x);
