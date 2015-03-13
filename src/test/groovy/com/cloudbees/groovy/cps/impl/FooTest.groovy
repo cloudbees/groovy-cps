@@ -5,6 +5,7 @@ import org.junit.Test
 
 public class FooTest extends AbstractGroovyCpsTest {
 
+    @Test
     public void test1() {
         assert 4==add(1,3);
     }
@@ -15,7 +16,7 @@ public class FooTest extends AbstractGroovyCpsTest {
     }
 
     public int add(int a, int b) { // CPS transformed version
-        if (true) {
+        if (Caller.isAsynchronous(this, "add", [a,b])) {
             throw new CpsCallableInvocation(asyncAdd, this, [a,b]);
         } else {
             return a+b; //
