@@ -1,14 +1,22 @@
 package com.cloudbees.groovy.cps.impl
 
-public class FooTest {
+import com.cloudbees.groovy.cps.AbstractGroovyCpsTest
+import org.junit.Test
+
+public class FooTest extends AbstractGroovyCpsTest {
 
     public void test1() {
         assert 4==add(1,3);
     }
 
+    @Test
+    public void callAddFromCps() {
+        assert 3==evalCPS("new FooTest().add(1,2)");
+    }
+
     public int add(int a, int b) { // CPS transformed version
-        if (???) {
-            throw new CpsCallableInvocation(null /*dummy*/ ,this, [a,b]);
+        if (true) {
+            throw new CpsCallableInvocation(asyncAdd, this, [a,b]);
         } else {
             return a+b; //
         }
