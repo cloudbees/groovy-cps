@@ -411,6 +411,16 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
 """) == 55;
     }
 
+    @Ignore("TODO #8: expected 6 but was 1")
+    @Test
+    void eachArray() {
+        assert evalCPS("""
+    def x = 0;
+    [1, 2, 3].each { y -> x+=y; }
+    return x;
+""") == 6;
+    }
+
     /**
      * Testing {@link CpsDefaultGroovyMethods} to ensure it doesn't kick in incorrectly
      * while processing synchronous code
