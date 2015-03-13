@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.cloudbees.groovy.cps.impl.SourceLocation.*;
+import java.lang.reflect.Field;
+import org.codehaus.groovy.reflection.ClassInfo;
 
 /**
  * Base class for defining a series of {@link Continuation} methods that share the same set of contextual values.
@@ -104,6 +106,14 @@ abstract class ContinuationGroup implements Serializable {
     }
 
     static {
+        try {
+            Field globalClassSet = ClassInfo.class.getDeclaredField("globalClassSet");
+            globalClassSet.setAccessible(true);
+            // TODO now need to find all classes
+            ((ClassInfo.ClassInfoSet) globalClassSet.get(null)).remove(ArrayList.class);
+        } catch (Exception x) {
+            throw new ExceptionInInitializerError(x);
+        }
         for (CachedMethod m : ReflectionCache.getCachedClass(CpsDefaultGroovyMethods.class).getMethods()) {
             CachedClass[] paramTypes = m.getParameterTypes();
             if (paramTypes.length>0)

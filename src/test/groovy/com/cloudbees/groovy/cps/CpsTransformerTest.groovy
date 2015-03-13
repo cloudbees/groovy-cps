@@ -411,7 +411,6 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
 """) == 55;
     }
 
-    @Ignore("TODO #8: expected 6 but was 1")
     @Test
     void eachArray() {
         assert evalCPS("""
