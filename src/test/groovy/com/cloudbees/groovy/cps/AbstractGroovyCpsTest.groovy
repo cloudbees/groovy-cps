@@ -46,8 +46,14 @@ abstract class AbstractGroovyCpsTest extends Assert {
     }
 
     Object evalCPS(String script) {
+        Object ov;
+        try {
+            ov = sh.evaluate(script);
+        } catch (Throwable t) {
+            // ignore; we are asserting an exception (could assert that this matches the exception class/message from evalCPSonly)
+        }
         Object v = evalCPSonly(script)
-        assert v==sh.evaluate(script); // make sure that regular non-CPS execution reports the same result
+        assert v == ov; // make sure that regular non-CPS execution reports the same result
         return v;
     }
 
