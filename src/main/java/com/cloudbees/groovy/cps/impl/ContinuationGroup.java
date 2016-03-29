@@ -21,6 +21,11 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.cloudbees.groovy.cps.impl.SourceLocation.*;
+import groovy.lang.EmptyRange;
+import groovy.lang.IntRange;
+import groovy.lang.Sequence;
+import java.lang.reflect.Field;
+import org.codehaus.groovy.reflection.ClassInfo;
 
 /**
  * Base class for defining a series of {@link Continuation} methods that share the same set of contextual values.
@@ -90,6 +95,22 @@ abstract class ContinuationGroup implements Serializable {
     }
 
     static {
+        try {
+            Field globalClassSet = ClassInfo.class.getDeclaredField("globalClassSet");
+            globalClassSet.setAccessible(true);
+            // TODO would be safer to clear all classes.
+            // But ClassInfoSet offers no such clear() method.
+            // Nor is there any other apparent way to find all loaded ClassInfo or MetaClassImpl instances.
+            // Using reflection to traverse the segment table looks quite tricky given its complex implementation.
+            // A breakpoint on ClassInfo.getClassInfo offers concrete classes assignable to Iterable known to be loaded by tests (during execution of CpsTransformer itself, or the test):
+            ((ClassInfo.ClassInfoSet) globalClassSet.get(null)).remove(ArrayList.class);
+            ((ClassInfo.ClassInfoSet) globalClassSet.get(null)).remove(IntRange.class);
+            ((ClassInfo.ClassInfoSet) globalClassSet.get(null)).remove(EmptyRange.class);
+            // And then just in case:
+            ((ClassInfo.ClassInfoSet) globalClassSet.get(null)).remove(Sequence.class);
+        } catch (Exception x) {
+            throw new ExceptionInInitializerError(x);
+        }
         for (CachedMethod m : ReflectionCache.getCachedClass(CpsDefaultGroovyMethods.class).getMethods()) {
             CachedClass[] paramTypes = m.getParameterTypes();
             if (paramTypes.length>0)
