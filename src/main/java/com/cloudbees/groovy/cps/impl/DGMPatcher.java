@@ -10,7 +10,6 @@ import groovy.lang.MetaMethod;
 import org.codehaus.groovy.reflection.CachedClass;
 import org.codehaus.groovy.reflection.CachedMethod;
 import org.codehaus.groovy.reflection.ClassInfo;
-import org.codehaus.groovy.reflection.ClassInfo.ClassInfoSet;
 import org.codehaus.groovy.reflection.GeneratedMetaMethod;
 import org.codehaus.groovy.reflection.ReflectionCache;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
@@ -30,6 +29,8 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Patches Groovy's method dispatch table so that they point to {@link CpsDefaultGroovyMethods} instead of
@@ -42,7 +43,7 @@ import java.util.Set;
  * at high level, this comes down to the following:
  *
  * <ol>
- * <li>{@link ClassInfoSet} holds references to {@link ClassInfo} where one instance exists for each {@link Class}
+ * <li>{@code ClassInfo.ClassInfoSet} (Groovy 1.x) holds references to {@link ClassInfo} where one instance exists for each {@link Class}
  * <li>{@link ClassInfo} holds a reference to {@link MetaClassImpl}
  * <li>{@link MetaClassImpl} holds a whole lot of {@link MetaMethod}s for methods that belong to the class
  * <li>Some of those {@link MetaMethod}s are {@link GeneratedMetaMethod} that points to methods defined on {@link DefaultGroovyMethods}
@@ -79,6 +80,9 @@ import java.util.Set;
  * @author Kohsuke Kawaguchi
  */
 class DGMPatcher {
+
+    private static final Logger LOGGER = Logger.getLogger(DGMPatcher.class.getName());
+
     // we need to traverse various internal fields of the objects
     private final Field MetaClassImpl_myNewMetaMethods = field(MetaClassImpl.class,"myNewMetaMethods");
     private final Field MetaClassImpl_newGroovyMethodsSet = field(MetaClassImpl.class,"newGroovyMethodsSet");
@@ -86,7 +90,7 @@ class DGMPatcher {
     private final Field ClassInfo_dgmMetaMethods = field(ClassInfo.class,"dgmMetaMethods");
     private final Field ClassInfo_newMetaMethods = field(ClassInfo.class,"newMetaMethods");
     private final Field ClassInfo_globalClassSet = field(ClassInfo.class,"globalClassSet");
-    private final Field ClassInfoSet_segments = field(AbstractConcurrentMapBase.class,"segments");
+    private final Field AbstractConcurrentMapBase_segments = field(AbstractConcurrentMapBase.class,"segments");
     private final Field Segment_table = field(Segment.class,"table");
 
     /**
@@ -184,15 +188,19 @@ class DGMPatcher {
      * Key data structure we visit is {@link MetaClassImpl},
      */
     private Object patch(Object o) {
+        if (o == null) {
+            return null;
+        }
+        LOGGER.log(Level.FINE, "patching {0}", o.getClass().getName());
         if (o instanceof MetaClassRegistryImpl) {
             MetaClassRegistryImpl r = (MetaClassRegistryImpl) o;
             patch(r.getInstanceMethods());
             patch(r.getStaticMethods());
         } else
-        if (o instanceof ClassInfoSet) {
+        // TODO this is redundant. Could simply iterate a collection of fields to see if o is assignable to the defining class.
+        if (o instanceof AbstractConcurrentMapBase) {
             // discover all ClassInfo in ClassInfoSet via Segment -> table -> ClassInfo
-            ClassInfoSet cis = (ClassInfoSet)o;
-            patch(cis,ClassInfoSet_segments);
+            patch(o, AbstractConcurrentMapBase_segments);
         } else
         if (o instanceof Segment) {
             Segment s = (Segment) o;
@@ -281,6 +289,9 @@ class DGMPatcher {
      * Patch a field of an object that's not directly accessible.
      */
     private void patch(Object o, Field f) {
+        if (f == null) {
+            return; // unavailable
+        }
         try {
             Object x = f.get(o);
             Object y = patch(x);
@@ -291,13 +302,22 @@ class DGMPatcher {
         }
     }
 
+    private Field field(String owner, String field) {
+        try {
+            return field(Class.forName(owner), field);
+        } catch (ClassNotFoundException x) {
+            LOGGER.log(Level.FINE, "no such class {0}", owner);
+            return null;
+        }
+    }
+
     private Field field(Class<?> owner, String field) {
         try {
             Field f = owner.getDeclaredField(field);
             f.setAccessible(true);
             return f;
         } catch (NoSuchFieldException e) {
-            // TODO: warn
+            LOGGER.log(Level.FINE, "no such field {0} in {1}", new Object[] {field, owner.getName()});
             return null;
         }
     }
@@ -313,6 +333,7 @@ class DGMPatcher {
             }
         }
         new DGMPatcher(methods).patch();
+        LOGGER.log(Level.FINE, "patched {0}", methods);
     }
 
     /**

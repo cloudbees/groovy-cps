@@ -14,6 +14,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.cloudbees.groovy.cps.impl.SourceLocation.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Base class for defining a series of {@link Continuation} methods that share the same set of contextual values.
@@ -25,6 +27,9 @@ import static com.cloudbees.groovy.cps.impl.SourceLocation.*;
  * @author Kohsuke Kawaguchi
  */
 abstract class ContinuationGroup implements Serializable {
+
+    private static final Logger LOGGER = Logger.getLogger(ContinuationGroup.class.getName());
+
     public Next then(Block exp, Env e, ContinuationPtr ptr) {
         return new Next(exp,e,ptr.bind(this));
     }
@@ -83,7 +88,11 @@ abstract class ContinuationGroup implements Serializable {
     }
 
     static {
-        DGMPatcher.init();
+        try {
+            DGMPatcher.init();
+        } catch (Throwable t) {
+            LOGGER.log(Level.WARNING, "cannot install JENKINS-26481 fix", t);
+        }
     }
 
     /**
