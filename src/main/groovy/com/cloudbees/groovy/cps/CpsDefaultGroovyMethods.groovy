@@ -24,7 +24,7 @@ public class CpsDefaultGroovyMethods {
         return _each(self,closure);
     }
 
-    public static <T> Iterator<T> each(List<T> list, Closure closure) {
+    public static <T> List<T> each(List<T> list, Closure closure) {
         return _each(list,closure);
     }
 
