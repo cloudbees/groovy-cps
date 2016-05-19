@@ -20,11 +20,13 @@ import org.codehaus.groovy.runtime.metaclass.NewInstanceMetaMethod;
 import org.codehaus.groovy.util.AbstractConcurrentMapBase;
 import org.codehaus.groovy.util.AbstractConcurrentMapBase.Segment;
 import org.codehaus.groovy.util.FastArray;
+import org.codehaus.groovy.util.ManagedLinkedList;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -93,6 +95,16 @@ class DGMPatcher {
     private final Field AbstractConcurrentMapBase_segments = field(AbstractConcurrentMapBase.class,"segments");
     private final Field Segment_table = field(Segment.class,"table");
 
+    // in Groovy 1., ClassInfo.globalClassSet returns ClassInfoSet, which extends AbstractConcurrentMap
+    // in Groovy 2.x, ClassInfo.globalClassSet return private GlobalClassSet, which defines
+    // "ManagedLinkedList items" field.
+    private final Class GlobalClassSet = clazz("org.codehaus.groovy.reflection.ClassInfo$GlobalClassSet");
+    private final Field GlobalClassSet_items = field(GlobalClassSet,"items");
+
+//    private final Field ManagedLinkedList_head = field(ManagedLinkedList.class,"head");
+//    private final Class ManagedLinkedList_Element = clazz(ManagedLinkedList.class.getName()+".Element");
+//    private final Field ManagedLinkedList_Element_next = field(ManagedLinkedList_Element,"next");
+//
     /**
      * Used to compare two {@link MetaMethod} by their signatures.
      */
@@ -197,10 +209,21 @@ class DGMPatcher {
             patch(r.getInstanceMethods());
             patch(r.getStaticMethods());
         } else
+        if (isInstance(GlobalClassSet,o)) {
+            patch(o,GlobalClassSet_items);
+        } else
         // TODO this is redundant. Could simply iterate a collection of fields to see if o is assignable to the defining class.
         if (o instanceof AbstractConcurrentMapBase) {
             // discover all ClassInfo in ClassInfoSet via Segment -> table -> ClassInfo
             patch(o, AbstractConcurrentMapBase_segments);
+        } else
+        if (o instanceof ManagedLinkedList) {
+            for (Iterator itr = ((ManagedLinkedList) o).iterator(); itr.hasNext(); ) {
+                Object item = itr.next();
+                if (patch(item)!=item) {
+                    LOGGER.log(Level.FINE, "Can't replace members of ManagedLinkedList",item);
+                }
+            }
         } else
         if (o instanceof Segment) {
             Segment s = (Segment) o;
@@ -285,6 +308,10 @@ class DGMPatcher {
         return o;
     }
 
+    private boolean isInstance(Class t, Object o) {
+        return t!=null && t.isInstance(o);
+    }
+
     /**
      * Patch a field of an object that's not directly accessible.
      */
@@ -302,16 +329,21 @@ class DGMPatcher {
         }
     }
 
-    private Field field(String owner, String field) {
+    private Class clazz(String name) {
         try {
-            return field(Class.forName(owner), field);
+            return Class.forName(name);
         } catch (ClassNotFoundException x) {
-            LOGGER.log(Level.FINE, "no such class {0}", owner);
+            LOGGER.log(Level.FINE, "no such class {0}", name);
             return null;
         }
     }
 
+    private Field field(String owner, String field) {
+        return field(clazz(owner), field);
+    }
+
     private Field field(Class<?> owner, String field) {
+        if (owner==null)    return null;
         try {
             Field f = owner.getDeclaredField(field);
             f.setAccessible(true);
