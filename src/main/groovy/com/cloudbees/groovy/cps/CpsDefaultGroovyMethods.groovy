@@ -44,6 +44,10 @@ public class CpsDefaultGroovyMethods {
         throw new CpsCallableInvocation(f,null,self,closure);
     }
 
+    public static <T> Iterator<T> each(List<T> iter, Closure closure) {
+        return each((Object)iter,closure);
+    }
+
     public static <T> Iterator<T> each(Iterator<T> iter, Closure closure) {
         if (!Caller.isAsynchronous(iter,"each",closure)
          && !Caller.isAsynchronous(CpsDefaultGroovyMethods.class,"each",iter,closure))
