@@ -187,7 +187,7 @@ class DGMPatcher {
      * <p>
      * Key data structure we visit is {@link MetaClassImpl},
      */
-    private Object patch(Object o) {
+    private <T> T patch(T o) {
         if (o == null) {
             return null;
         }
@@ -244,7 +244,7 @@ class DGMPatcher {
             MetaMethod replace = overrides.get(new Key(gm));
             if (replace!=null) {
                 // we found a GeneratedMetaMethod that points to DGM that needs to be replaced!
-                return replace;
+                return (T)replace;
             }
         } else
 // other collection structure that needs to be recursively visited
