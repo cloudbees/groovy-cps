@@ -439,10 +439,10 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
     @Test
     void each() {
         assert evalCPS("""
-    def x = 0;
+    def x = 100;
     (0..10).each { y -> x+=y; }
     return x;
-""") == 55;
+""") == 155;
     }
 
     /**
@@ -618,9 +618,9 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
     @Test
     void eachArray() {
         assert evalCPS("""
-            def x = 0;
+            def x = 10;
             [1, 2, 3].each { y -> x+=y; }
             return x;
-        """) == 6;
+        """) == 16;
     }
 }
