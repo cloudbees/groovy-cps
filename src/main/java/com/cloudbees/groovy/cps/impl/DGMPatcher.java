@@ -30,12 +30,14 @@ import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -166,6 +168,12 @@ class DGMPatcher {
     private final Map<Key,MetaMethod> overrides = new HashMap<Key, MetaMethod>();
 
     /**
+     * As we patch objects we remember the object graph traversal route that we took to came here.
+     * Assists diagnostics.
+     */
+    private final Stack<Object> trail = new Stack<Object>();
+
+    /**
      * @param methods
      *      List of methods to overwrite {@link DefaultGroovyMethods}
      */
@@ -209,113 +217,132 @@ class DGMPatcher {
             return null;
         }
         LOGGER.log(Level.FINE, "patching {0}", o.getClass().getName());
-        if (o instanceof MetaClassRegistryImpl) {
-            MetaClassRegistryImpl r = (MetaClassRegistryImpl) o;
-            patch(r.getInstanceMethods());
-            patch(r.getStaticMethods());
-        } else
-        if (isInstance(GlobalClassSet,o)) {
-            patch(o,GlobalClassSet_items);
-        } else
-        // TODO this is redundant. Could simply iterate a collection of fields to see if o is assignable to the defining class.
-        if (o instanceof AbstractConcurrentMapBase) {
-            // discover all ClassInfo in ClassInfoSet via Segment -> table -> ClassInfo
-            patch(o, AbstractConcurrentMapBase_segments);
-        } else
-        if (o instanceof ManagedLinkedList) {
-            for (Iterator itr = ((ManagedLinkedList) o).iterator(); itr.hasNext(); ) {
-                Object item = itr.next();
-                if (patch(item)!=item) {
-                    LOGGER.log(Level.FINE, "Can't replace members of ManagedLinkedList",item);
+        trail.push(o);
+        try {
+            if (o instanceof MetaClassRegistryImpl) {
+                MetaClassRegistryImpl r = (MetaClassRegistryImpl) o;
+                patch(r.getInstanceMethods());
+                patch(r.getStaticMethods());
+            } else if (isInstance(GlobalClassSet, o)) {
+                patch(o, GlobalClassSet_items);
+            } else
+            // TODO this is redundant. Could simply iterate a collection of fields to see if o is assignable to the defining class.
+            if (o instanceof AbstractConcurrentMapBase) {
+                // discover all ClassInfo in ClassInfoSet via Segment -> table -> ClassInfo
+                patch(o, AbstractConcurrentMapBase_segments);
+            } else if (o instanceof ManagedLinkedList) {
+                for (Iterator itr = ((ManagedLinkedList) o).iterator(); itr.hasNext(); ) {
+                    Object item = itr.next();
+                    if (patch(item) != item) {
+                        LOGGER.log(Level.WARNING, "Can't replace members of ManagedLinkedList", item);
+                    }
+                }
+            } else if (o instanceof Segment) {
+                Segment s = (Segment) o;
+                patch(s, Segment_table);
+            } else if (o instanceof ClassInfo) {
+                try {
+                    trail.pop();
+                    trail.push("ClassInfo:"+field(ClassInfo.class,"klazz").get(o));
+                } catch (IllegalAccessException e) {
+                    throw new Error(e);
+                }
+                ClassInfo ci = (ClassInfo) o;
+                patch(ci, ClassInfo_dgmMetaMethods);
+                patch(ci, ClassInfo_newMetaMethods);
+                // ClassInfo -> MetaClass
+                patch(ci.getStrongMetaClass());
+                patch(ci.getWeakMetaClass());
+                //            patch(ci.getCachedClass());
+            } else
+            // doesn't look like we need to visit this
+            //        if (o instanceof CachedClass) {
+            //            CachedClass cc = (CachedClass) o;
+            //            patch(cc.classInfo);
+            //        } else
+            if (o instanceof MetaClassImpl) {
+                MetaClassImpl mc = (MetaClassImpl) o;
+                patch(mc, MetaClassImpl_myNewMetaMethods);
+                patch(mc.getMethods()); // this directly returns mc.allMethods
+                patch(mc, MetaClassImpl_newGroovyMethodsSet);
+                patch(mc, MetaClassImpl_metaMethodIndex);
+            } else if (o instanceof MetaMethodIndex) {
+                MetaMethodIndex mmi = (MetaMethodIndex) o;
+                for (Entry e : mmi.getTable()) {
+                    if (e != null) {
+                        e.methods = patch(e.methods);
+                        e.methodsForSuper = patch(e.methodsForSuper);
+                        e.staticMethods = patch(e.staticMethods);
+                    }
+                }
+                mmi.clearCaches(); // in case anything was actually modified
+            } else if (o instanceof GeneratedMetaMethod) {
+                // the actual patch logic.
+                GeneratedMetaMethod gm = (GeneratedMetaMethod) o;
+                MetaMethod replace = overrides.get(new Key(gm));
+                if (replace != null) {
+                    // we found a GeneratedMetaMethod that points to DGM that needs to be replaced!
+                    PATCH_COUNT++;
+                    System.out.println("Patched #" + PATCH_COUNT+" "+replace);
+                    if (PATCH_COUNT == 10) {
+                        threadDump();
+                    }
+                    printTrail();
+                    return (T) replace;
+                }
+            } else if (o instanceof MetaMethod) {
+                // near hits
+                if (overrides.containsKey(new Key((MetaMethod)o))) {
+                    System.out.println("Near miss");
+                    printTrail();
+                }
+            } else
+            // other collection structure that needs to be recursively visited
+            if (o instanceof Object[]) {
+                Object[] a = (Object[]) o;
+                for (int i = 0; i < a.length; i++) {
+                    a[i] = patch(a[i]);
+                }
+            } else if (o instanceof List) {
+                List l = (List) o;
+                ListIterator i = l.listIterator();
+                while (i.hasNext()) {
+                    Object x = i.next();
+                    Object y = patch(x);
+                    if (x != y) i.set(y);
+                }
+            } else if (o instanceof FastArray) {
+                FastArray a = (FastArray) o;
+                for (int i = 0; i < a.size(); i++) {
+                    Object x = a.get(i);
+                    Object y = patch(x);
+                    if (x != y) a.set(i, y);
+                }
+            } else if (o instanceof Set) {
+                Set s = (Set) o;
+                for (Object x : s.toArray()) {
+                    Object y = patch(x);
+                    if (x != y) {
+                        s.remove(x);
+                        s.add(y);
+                    }
                 }
             }
-        } else
-        if (o instanceof Segment) {
-            Segment s = (Segment) o;
-            patch(s,Segment_table);
-        } else
-        if (o instanceof ClassInfo) {
-            ClassInfo ci = (ClassInfo) o;
-            patch(ci,ClassInfo_dgmMetaMethods);
-            patch(ci,ClassInfo_newMetaMethods);
-            // ClassInfo -> MetaClass
-            patch(ci.getStrongMetaClass());
-            patch(ci.getWeakMetaClass());
-//            patch(ci.getCachedClass());
-        } else
-// doesn't look like we need to visit this
-//        if (o instanceof CachedClass) {
-//            CachedClass cc = (CachedClass) o;
-//            patch(cc.classInfo);
-//        } else
-        if (o instanceof MetaClassImpl) {
-            MetaClassImpl mc = (MetaClassImpl) o;
-            patch(mc,MetaClassImpl_myNewMetaMethods);
-            patch(mc.getMethods()); // this directly returns mc.allMethods
-            patch(mc,MetaClassImpl_newGroovyMethodsSet);
-            patch(mc,MetaClassImpl_metaMethodIndex);
-        } else
-        if (o instanceof MetaMethodIndex) {
-            MetaMethodIndex mmi = (MetaMethodIndex) o;
-            for (Entry e : mmi.getTable()) {
-                if (e!=null) {
-                    e.methods = patch(e.methods);
-                    e.methodsForSuper = patch(e.methodsForSuper);
-                    e.staticMethods = patch(e.staticMethods);
-                }
-            }
-            mmi.clearCaches(); // in case anything was actually modified
-        } else
-        if (o instanceof GeneratedMetaMethod) {
-            // the actual patch logic.
-            GeneratedMetaMethod gm = (GeneratedMetaMethod) o;
-            MetaMethod replace = overrides.get(new Key(gm));
-            if (replace!=null) {
-                // we found a GeneratedMetaMethod that points to DGM that needs to be replaced!
-                PATCH_COUNT++;
-                System.out.println("Patched "+PATCH_COUNT);
-                if (PATCH_COUNT==10) {
-                    threadDump();
-                }
-                return (T)replace;
-            }
-        } else
-// other collection structure that needs to be recursively visited
-        if (o instanceof Object[]) {
-            Object[] a = (Object[])o;
-            for (int i=0; i<a.length; i++) {
-                a[i] = patch(a[i]);
-            }
-        } else
-        if (o instanceof List) {
-            List l = (List)o;
-            ListIterator i = l.listIterator();
-            while (i.hasNext()) {
-                Object x = i.next();
-                Object y = patch(x);
-                if (x!=y)   i.set(y);
-            }
-        } else
-        if (o instanceof FastArray) {
-            FastArray a = (FastArray) o;
-            for (int i=0; i<a.size(); i++) {
-                Object x = a.get(i);
-                Object y = patch(x);
-                if (x!=y)   a.set(i,y);
-            }
-        } else
-        if (o instanceof Set) {
-            Set s = (Set)o;
-            for (Object x : s.toArray()) {
-                Object y = patch(x);
-                if (x!=y) {
-                    s.remove(x);
-                    s.add(y);
-                }
-            }
-        }
 
-        return o;
+            return o;
+        } finally {
+            trail.pop();
+        }
+    }
+
+    private void printTrail() {
+        for (Object t : trail) {
+            if (t instanceof Collection)
+                t = t.getClass()+"[size="+((Collection)t).size()+"]";
+            if (t instanceof FastArray)
+                t = "FastArray[size="+((FastArray)t).size()+"]";
+            System.out.println("  "+t.getClass().getName()+"\n     "+t.toString().replace('\n',' '));
+        }
     }
 
     private boolean isInstance(Class t, Object o) {
@@ -329,6 +356,7 @@ class DGMPatcher {
         if (f == null) {
             return; // unavailable
         }
+        trail.push("-> "+f.getName());
         try {
             Object x = f.get(o);
             Object y = patch(x);
@@ -336,6 +364,8 @@ class DGMPatcher {
                 f.set(o,y);
         } catch (IllegalAccessException e) {
             throw new AssertionError(e); // we make this field accessible
+        } finally {
+            trail.pop();
         }
     }
 
