@@ -221,7 +221,8 @@ class DGMPatcher {
             for (Iterator itr = ((ManagedLinkedList) o).iterator(); itr.hasNext(); ) {
                 Object item = itr.next();
                 if (patch(item)!=item) {
-                    LOGGER.log(Level.FINE, "Can't replace members of ManagedLinkedList",item);
+                    LOGGER.log(Level.WARNING, "Cannot currently replace members of ManagedLinkedList: {0}", item);
+                    // TODO would be possible, if necessary, by calling ManagedLinkedList.Item.remove on *all* elements, then using ManagedLinkedList.add to recreate the entire list
                 }
             }
         } else
@@ -296,13 +297,17 @@ class DGMPatcher {
         } else
         if (o instanceof Set) {
             Set s = (Set)o;
-            for (Object x : s.toArray()) {
+            List<Object> extras = new ArrayList<Object>();
+            Iterator it = s.iterator();
+            while (it.hasNext()) {
+                Object x = it.next();
                 Object y = patch(x);
-                if (x!=y) {
-                    s.remove(x);
-                    s.add(y);
+                if (x != y) {
+                    it.remove();
+                    extras.add(y);
                 }
             }
+            s.addAll(extras);
         }
 
         return o;
