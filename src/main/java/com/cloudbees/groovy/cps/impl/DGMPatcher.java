@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -96,6 +97,8 @@ class DGMPatcher {
     private final Field MetaClassImpl_myNewMetaMethods = field(MetaClassImpl.class,"myNewMetaMethods");
     private final Field MetaClassImpl_newGroovyMethodsSet = field(MetaClassImpl.class,"newGroovyMethodsSet");
     private final Field MetaClassImpl_metaMethodIndex = field(MetaClassImpl.class,"metaMethodIndex");
+    private final Field MetaClassImpl_additionalMetaMethods = field(MetaClassImpl.class,"additionalMetaMethods");
+    private final Field MetaClassImpl_allMethods = field(MetaClassImpl.class,"allMethods");
     private final Field ClassInfo_dgmMetaMethods = field(ClassInfo.class,"dgmMetaMethods");
     private final Field ClassInfo_newMetaMethods = field(ClassInfo.class,"newMetaMethods");
     private final Field ClassInfo_globalClassSet = field(ClassInfo.class,"globalClassSet");
@@ -174,6 +177,11 @@ class DGMPatcher {
     private final Stack<Object> trail = new Stack<Object>();
 
     /**
+     * Used as a set to keep track of what objects have been visited.
+     */
+    private final Map<Object,Object> visited = new IdentityHashMap<Object,Object>();
+
+    /**
      * @param methods
      *      List of methods to overwrite {@link DefaultGroovyMethods}
      */
@@ -191,12 +199,6 @@ class DGMPatcher {
      */
     void patch() {
         MetaClassRegistry r = GroovySystem.getMetaClassRegistry();
-// this never seems to iterate anything
-//        Iterator<MetaClass> itr = r.iterator();
-//        while (itr.hasNext()) {
-//            MetaClass mc = itr.next();
-//            patch(mc);
-//        }
         patch(r);
 
         try {
@@ -204,6 +206,13 @@ class DGMPatcher {
         } catch (IllegalAccessException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private boolean mark(Object o) {
+        if (visited.containsKey(o))
+            return false;
+        visited.put(o,o);
+        return true;
     }
 
     /**
@@ -216,6 +225,7 @@ class DGMPatcher {
         if (o == null) {
             return null;
         }
+
         LOGGER.log(Level.FINE, "patching {0}", o.getClass().getName());
         trail.push(o);
         try {
@@ -223,6 +233,10 @@ class DGMPatcher {
                 MetaClassRegistryImpl r = (MetaClassRegistryImpl) o;
                 patch(r.getInstanceMethods());
                 patch(r.getStaticMethods());
+                Iterator<MetaClass> itr = r.iterator();
+                while (itr.hasNext()) {
+                    patch(itr.next());
+                }
             } else if (isInstance(GlobalClassSet, o)) {
                 patch(o, GlobalClassSet_items);
             } else
@@ -241,6 +255,8 @@ class DGMPatcher {
                 Segment s = (Segment) o;
                 patch(s, Segment_table);
             } else if (o instanceof ClassInfo) {
+                if (!mark(o))   return o;   // already patched
+
                 try {
                     trail.pop();
                     trail.push("ClassInfo:"+field(ClassInfo.class,"klazz").get(o));
@@ -253,19 +269,25 @@ class DGMPatcher {
                 // ClassInfo -> MetaClass
                 patch(ci.getStrongMetaClass());
                 patch(ci.getWeakMetaClass());
-                //            patch(ci.getCachedClass());
+                patch(ci.getCachedClass());
             } else
             // doesn't look like we need to visit this
-            //        if (o instanceof CachedClass) {
-            //            CachedClass cc = (CachedClass) o;
-            //            patch(cc.classInfo);
-            //        } else
+            if (o instanceof CachedClass) {
+                if (!mark(o))   return o;   // already patched
+
+                CachedClass cc = (CachedClass) o;
+                patch(cc.classInfo);
+            } else
             if (o instanceof MetaClassImpl) {
+                if (!mark(o))   return o;   // already patched
+
                 MetaClassImpl mc = (MetaClassImpl) o;
                 patch(mc, MetaClassImpl_myNewMetaMethods);
                 patch(mc.getMethods()); // this directly returns mc.allMethods
                 patch(mc, MetaClassImpl_newGroovyMethodsSet);
                 patch(mc, MetaClassImpl_metaMethodIndex);
+                patch(mc, MetaClassImpl_allMethods);
+                patch(mc, MetaClassImpl_additionalMetaMethods);
             } else if (o instanceof MetaMethodIndex) {
                 MetaMethodIndex mmi = (MetaMethodIndex) o;
                 for (Entry e : mmi.getTable()) {
