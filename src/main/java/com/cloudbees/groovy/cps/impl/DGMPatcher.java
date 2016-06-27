@@ -22,6 +22,11 @@ import org.codehaus.groovy.util.AbstractConcurrentMapBase.Segment;
 import org.codehaus.groovy.util.FastArray;
 import org.codehaus.groovy.util.ManagedLinkedList;
 
+import java.lang.management.LockInfo;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -267,6 +272,11 @@ class DGMPatcher {
             MetaMethod replace = overrides.get(new Key(gm));
             if (replace!=null) {
                 // we found a GeneratedMetaMethod that points to DGM that needs to be replaced!
+                PATCH_COUNT++;
+                System.out.println("Patched "+PATCH_COUNT);
+                if (PATCH_COUNT==10) {
+                    threadDump();
+                }
                 return (T)replace;
             }
         } else
@@ -372,4 +382,78 @@ class DGMPatcher {
      * No-op method to ensure the static initializer has run.
      */
     public static void init() {}
+
+    private static int PATCH_COUNT = 0;
+
+    /**
+     * Debug assistance: dump all the threads and report that to stdout
+     */
+    private static void threadDump() {
+        ThreadMXBean mbean = ManagementFactory.getThreadMXBean();
+        for (ThreadInfo ti : mbean.dumpAllThreads(mbean.isObjectMonitorUsageSupported(),mbean.isSynchronizerUsageSupported()))
+            System.out.println(dumpThreadInfo(ti));
+    }
+
+    private static String dumpThreadInfo(ThreadInfo ti) {
+        StringBuilder sb = new StringBuilder("\"" + ti.getThreadName() + "\"" +
+                                             " Id=" + ti.getThreadId() + " Group=" +
+                                             ti.getThreadState());
+        if (ti.getLockName() != null) {
+            sb.append(" on " + ti.getLockName());
+        }
+        if (ti.getLockOwnerName() != null) {
+            sb.append(" owned by \"" + ti.getLockOwnerName() +
+                      "\" Id=" + ti.getLockOwnerId());
+        }
+        if (ti.isSuspended()) {
+            sb.append(" (suspended)");
+        }
+        if (ti.isInNative()) {
+            sb.append(" (in native)");
+        }
+        sb.append('\n');
+        StackTraceElement[] stackTrace = ti.getStackTrace();
+        for (int i=0; i < stackTrace.length; i++) {
+            StackTraceElement ste = stackTrace[i];
+            sb.append("\tat ").append(ste);
+            sb.append('\n');
+            if (i == 0 && ti.getLockInfo() != null) {
+                Thread.State ts = ti.getThreadState();
+                switch (ts) {
+                    case BLOCKED:
+                        sb.append("\t-  blocked on ").append(ti.getLockInfo());
+                        sb.append('\n');
+                        break;
+                    case WAITING:
+                        sb.append("\t-  waiting on ").append(ti.getLockInfo());
+                        sb.append('\n');
+                        break;
+                    case TIMED_WAITING:
+                        sb.append("\t-  waiting on ").append(ti.getLockInfo());
+                        sb.append('\n');
+                        break;
+                    default:
+                }
+            }
+
+            for (MonitorInfo mi : ti.getLockedMonitors()) {
+                if (mi.getLockedStackDepth() == i) {
+                    sb.append("\t-  locked ").append(mi);
+                    sb.append('\n');
+                }
+            }
+       }
+
+       LockInfo[] locks = ti.getLockedSynchronizers();
+       if (locks.length > 0) {
+           sb.append("\n\tNumber of locked synchronizers = " + locks.length);
+           sb.append('\n');
+           for (LockInfo li : locks) {
+               sb.append("\t- ").append(li);
+               sb.append('\n');
+           }
+       }
+       sb.append('\n');
+       return sb.toString();
+    }
 }
