@@ -43,7 +43,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static com.cloudbees.groovy.cps.impl.CollectionLiteralBlock.item;
-import static java.util.logging.Level.WARNING;
+import static java.util.logging.Level.*;
 
 /**
  * Patches Groovy's method dispatch table so that they point to {@link CpsDefaultGroovyMethods} instead of
@@ -229,7 +229,7 @@ class DGMPatcher {
             return null;
         }
 
-        LOGGER.log(Level.FINE, "patching {0}", o.getClass().getName());
+        LOGGER.log(FINE, "patching {0}", o.getClass().getName());
         trail.push(o);
         try {
             if (o instanceof MetaClassRegistryImpl) {
@@ -255,8 +255,18 @@ class DGMPatcher {
                     }
                 }
             } else if (o instanceof Segment) {
-                Segment s = (Segment) o;
-                patch(s, Segment_table);
+                try {
+                    Segment s = (Segment) o;
+                    Object[] ary = (Object[]) Segment_table.get(o);
+                    int[] before = hashCodeOfArray(ary);
+
+                    patch(s, Segment_table);
+
+                    if (Arrays.equals(before,hashCodeOfArray(ary)))
+                        LOGGER.log(WARNING, "hash code has changed");
+                } catch (IllegalAccessException e) {
+                    throw new AssertionError(e);
+                }
             } else if (o instanceof ClassInfo) {
                 if (!mark(o))   return o;   // already patched
 
@@ -363,6 +373,13 @@ class DGMPatcher {
         }
     }
 
+    private int[] hashCodeOfArray(Object[] a) {
+        int[] r = new int[a.length];
+        for (int i=0; i<a.length; i++)
+            r[i] = a[i].hashCode();
+        return r;
+    }
+
     /**
      * Optionally report the trail of patching for diagnostics.
      */
@@ -407,7 +424,7 @@ class DGMPatcher {
         try {
             return Class.forName(name);
         } catch (ClassNotFoundException x) {
-            LOGGER.log(Level.FINE, "no such class {0}", name);
+            LOGGER.log(FINE, "no such class {0}", name);
             return null;
         }
     }
@@ -423,7 +440,7 @@ class DGMPatcher {
             f.setAccessible(true);
             return f;
         } catch (NoSuchFieldException e) {
-            LOGGER.log(Level.FINE, "no such field {0} in {1}", new Object[] {field, owner.getName()});
+            LOGGER.log(FINE, "no such field {0} in {1}", new Object[] {field, owner.getName()});
             return null;
         }
     }
@@ -439,7 +456,7 @@ class DGMPatcher {
             }
         }
         new DGMPatcher(methods).patch();
-        LOGGER.log(Level.FINE, "patched {0}", methods);
+        LOGGER.log(FINE, "patched {0}", methods);
     }
 
     /**
