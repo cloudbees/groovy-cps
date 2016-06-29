@@ -305,18 +305,16 @@ class DGMPatcher {
                 if (replace != null) {
                     // we found a GeneratedMetaMethod that points to DGM that needs to be replaced!
                     PATCH_COUNT++;
-                    System.out.println("Patched #" + PATCH_COUNT+" "+replace);
-                    if (PATCH_COUNT == 10) {
-                        threadDump();
-                    }
-                    printTrail();
+//                    if (PATCH_COUNT == 10) {
+//                        threadDump();
+//                    }
+                    printTrail("Patched #" + PATCH_COUNT+" "+replace);
                     return (T) replace;
                 }
             } else if (o instanceof MetaMethod) {
                 // near hits
                 if (overrides.containsKey(new Key((MetaMethod)o))) {
-                    System.out.println("Near miss");
-                    printTrail();
+                    printTrail("Near miss");
                 }
             } else
             // other collection structure that needs to be recursively visited
@@ -357,7 +355,13 @@ class DGMPatcher {
         }
     }
 
-    private void printTrail() {
+    /**
+     * Optionally report the trail of patching for diagnostics.
+     */
+    private void printTrail(String header) {
+        if (!REPORT_TRAIL)      return;
+
+        System.out.println(header);
         for (Object t : trail) {
             if (t instanceof Collection)
                 t = t.getClass()+"[size="+((Collection)t).size()+"]";
@@ -436,6 +440,8 @@ class DGMPatcher {
     public static void init() {}
 
     private static int PATCH_COUNT = 0;
+
+    private static boolean REPORT_TRAIL = Boolean.getBoolean(DGMPatcher.class.getName()+".reportTrail");
 
     /**
      * Debug assistance: dump all the threads and report that to stdout
