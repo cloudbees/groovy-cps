@@ -42,6 +42,9 @@ import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static com.cloudbees.groovy.cps.impl.CollectionLiteralBlock.item;
+import static java.util.logging.Level.WARNING;
+
 /**
  * Patches Groovy's method dispatch table so that they point to {@link CpsDefaultGroovyMethods} instead of
  * {@link DefaultGroovyMethods}.
@@ -248,7 +251,7 @@ class DGMPatcher {
                 for (Iterator itr = ((ManagedLinkedList) o).iterator(); itr.hasNext(); ) {
                     Object item = itr.next();
                     if (patch(item) != item) {
-                        LOGGER.log(Level.WARNING, "Can't replace members of ManagedLinkedList", item);
+                        LOGGER.log(WARNING, "Can't replace members of ManagedLinkedList", item);
                     }
                 }
             } else if (o instanceof Segment) {
@@ -341,10 +344,15 @@ class DGMPatcher {
             } else if (o instanceof Set) {
                 Set s = (Set) o;
                 for (Object x : s.toArray()) {
+                    int h = x.hashCode();
                     Object y = patch(x);
                     if (x != y) {
                         s.remove(x);
                         s.add(y);
+                    } else {
+                        if (x.hashCode()!=h) {
+                            LOGGER.log(WARNING, "Hash code has changed", x);
+                        }
                     }
                 }
             }
