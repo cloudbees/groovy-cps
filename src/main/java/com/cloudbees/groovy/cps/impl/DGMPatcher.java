@@ -252,6 +252,7 @@ class DGMPatcher {
                     Object item = itr.next();
                     if (patch(item) != item) {
                         LOGGER.log(WARNING, "Can't replace members of ManagedLinkedList", item);
+                    // TODO would be possible, if necessary, by calling ManagedLinkedList.Item.remove on *all* elements, then using ManagedLinkedList.add to recreate the entire list
                     }
                 }
             } else if (o instanceof Segment) {
