@@ -644,4 +644,22 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
             return true
         ''') == true;
     }
+
+    @Test
+    public void closure_rehydrate() {
+        assert evalCPS('''
+            class MyStrategy {
+                Closure<String> process() {
+                    return {
+                        speak()
+                    }
+                }
+            }
+            String speak() {
+                'from Script instance'
+            }
+            Closure<String> closure = new MyStrategy().process()
+            return closure.rehydrate(this, this, this).call()
+        ''')=='from Script instance';
+    }
 }
