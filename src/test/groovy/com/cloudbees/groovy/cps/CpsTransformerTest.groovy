@@ -645,6 +645,9 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
         ''') == true;
     }
 
+    /**
+     * @see Issue28
+     */
     @Test
     public void closure_rehydrate() {
         assert evalCPS('''
