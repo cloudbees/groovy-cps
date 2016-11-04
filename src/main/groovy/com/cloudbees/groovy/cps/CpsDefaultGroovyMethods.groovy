@@ -21,6 +21,14 @@ public class CpsDefaultGroovyMethods {
      * Interception is successful. The trick is to pre-translate this method into CPS.
      */
     public static <T> T each(T self, Closure closure) {
+        return _each(self,closure);
+    }
+
+    public static <T> List<T> each(List<T> list, Closure closure) {
+        return _each(list,closure);
+    }
+
+    private static <T> T _each(T self, Closure closure) {
         if (!Caller.isAsynchronous(self,"each",closure)
          && !Caller.isAsynchronous(CpsDefaultGroovyMethods.class,"each",self,closure))
             return DefaultGroovyMethods.each(self,closure);

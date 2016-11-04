@@ -466,14 +466,13 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
     /**
      * Testing {@link CpsDefaultGroovyMethods}.
      */
-    @Ignore("TODO JENKINS-34064")
     @Test
     void each() {
         assert evalCPS("""
-    def x = 0;
+    def x = 100;
     (0..10).each { y -> x+=y; }
     return x;
-""") == 55;
+""") == 155;
     }
 
     /**
@@ -645,14 +644,14 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
 
     public static int add(int a, int b) { return a+b; }
 
-    @Ignore("TODO JENKINS-34064")
+
     @Test
     void eachArray() {
         assert evalCPS("""
-            def x = 0;
+            def x = 10;
             [1, 2, 3].each { y -> x+=y; }
             return x;
-        """) == 6;
+        """) == 16;
     }
 
     @Issue('https://github.com/cloudbees/groovy-cps/issues/26')
