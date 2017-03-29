@@ -4,7 +4,6 @@ import com.cloudbees.groovy.cps.impl.ContinuationGroup
 import com.cloudbees.groovy.cps.impl.CpsCallableInvocation
 import com.cloudbees.groovy.cps.impl.DGMPatcher
 import groovy.transform.NotYetImplemented
-import org.junit.Ignore
 import org.junit.Test
 import org.jvnet.hudson.test.Issue
 
@@ -128,6 +127,23 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
         """)=="";
     }
 
+    @Issue('https://github.com/cloudbees/groovy-cps/issues/31')
+    @Test
+    void constructorList() {
+        File f =  ['/parent', 'name'];
+        println(f);
+        assert evalCPS('''\
+            File f = ['/parent', 'name']
+            return f
+        '''.stripIndent()) == new File('/parent', 'name')
+
+        // Test the closure env
+        assert evalCPS('''\
+            def close = {String parent, String name -> [parent, name] as File}
+            return close('/parent', 'name')
+        '''.stripIndent()) == new File('/parent', 'name')
+    }
+
     @Test
     void workflowCallingWorkflow() {
         assert evalCPS("""
@@ -192,7 +208,7 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
      * do-while loop that evaluates to false immediately
      */
     @Test
-    @Ignore
+    @NotYetImplemented
     void doWhileLoop() {
         assert evalCPS("""
             int x=1;
@@ -207,7 +223,7 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
      * do/while loop that goes through several iterations.
      */
     @Test
-    @Ignore
+    @NotYetImplemented
     void dowhileLoop5() {
         assert evalCPS("""
             int x=1;
@@ -368,6 +384,18 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
             def x = "foo";
             return "hello ${1+3}=${x}";
 ''')=="hello 4=foo";
+    }
+
+    @Issue('https://github.com/cloudbees/groovy-cps/issues/15')
+    @Test
+    void gstringWithStringWriterClosure() {
+        String script = '''
+            String text = 'Foobar';
+            String result = """${ w -> w << text}""".toString();
+            return result;
+        '''.stripIndent();
+        assert evalCPSonly(script).getClass() == java.lang.String.class;
+        assert evalCPS(script) == 'Foobar';
     }
 
     @Test
@@ -583,6 +611,29 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
         ''') == [-3,2];
     }
 
+    @Test
+    void fieldDirect() {
+        assert evalCPS('class C {private int x = 33}; new C().x') == 33
+    }
+
+    @Issue("JENKINS-31484")
+    @Test
+    void fieldViaGetter() {
+        assert evalCPS('class C {private int x = 33; int getX() {2 * this.@x}}; new C().x') == 66
+        assert evalCPS('class C {private int x = 33; int getX() {2 * x}}; new C().x') == 66
+    }
+
+    @Issue("JENKINS-31484")
+    @Test
+    void fieldViaSetter() {
+        assert evalCPS('class C {private int x = 0; int getX() {2 * x}; void setX(int x) {this.@x = x / 3}}; C c = new C(); c.x = 33; c.x') == 22
+        assert evalCPS('class C {private int x = 0; int getX() {2 * x}; void setX(int x) {this.x = x / 3}}; C c = new C(); c.x = 33; c.x') == 22
+    }
+
+    @Test
+    void nonField() {
+        assert evalCPS('class C extends HashMap {def read() {x * 2}; def write(x) {this.x = x / 3}}; C c = new C(); c.write(33); c.read()') == 22
+    }
 
     @Test
     void method_pointer() {
@@ -615,7 +666,6 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
 
     public static int add(int a, int b) { return a+b; }
 
-
     @Test
     void eachArray() {
         assert evalCPS("""
@@ -644,4 +694,71 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
             return true
         ''') == true;
     }
+
+    public static class Base {
+        @Override
+        String toString() {
+            return "base";
+        }
+    }
+    @Test
+    void superClass() {
+        assert evalCPS('''
+            class Foo extends CpsTransformerTest.Base {
+                public String toString() {
+                    return "x"+super.toString();
+                }
+            }
+            new Foo().toString();
+        ''')=="xbase"
+    }
+
+    @Test
+    @Issue("https://github.com/cloudbees/groovy-cps/issues/42")
+    void abstractMethod() {
+        assert evalCPS('''
+            abstract class Foo {
+                abstract int val()
+            }
+            Foo foo = new Foo() {int val() {123}}
+            foo.val()
+        ''') == 123
+    }
+
+    @Issue('https://github.com/cloudbees/groovy-cps/issues/28')
+    @Test
+    @NotYetImplemented
+    void rehydrateClosure() {
+        assert evalCPS('''
+            class MyStrategy {
+                Closure<String> process() {
+                    return {
+                        speak()
+                    }
+                }
+            }
+            String speak() {
+                'from Script instance'
+            }
+            Closure<String> closure = new MyStrategy().process()
+            closure.rehydrate(this, this, this).call()
+        ''') == 'from Script instance';
+    }
+
+    @Issue("https://github.com/cloudbees/groovy-cps/issues/16")
+    @Test
+    @NotYetImplemented
+    void category() {
+        assert evalCPS('''
+            class BarCategory {
+                static String up(String text) {
+                    text.toUpperCase()
+                }
+            }
+            return use(BarCategory) {
+                'foo'.up()
+            };
+        ''') == 'FOO';
+    }
+
 }

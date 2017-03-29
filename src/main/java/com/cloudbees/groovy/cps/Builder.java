@@ -31,11 +31,13 @@ import com.cloudbees.groovy.cps.impl.ReturnBlock;
 import com.cloudbees.groovy.cps.impl.SequenceBlock;
 import com.cloudbees.groovy.cps.impl.SourceLocation;
 import com.cloudbees.groovy.cps.impl.StaticFieldBlock;
+import com.cloudbees.groovy.cps.impl.SuperBlock;
 import com.cloudbees.groovy.cps.impl.SwitchBlock;
 import com.cloudbees.groovy.cps.impl.ThrowBlock;
 import com.cloudbees.groovy.cps.impl.TryCatchBlock;
 import com.cloudbees.groovy.cps.impl.VariableDeclBlock;
 import com.cloudbees.groovy.cps.impl.WhileBlock;
+import com.cloudbees.groovy.cps.impl.YieldBlock;
 import com.cloudbees.groovy.cps.sandbox.CallSiteTag;
 import com.cloudbees.groovy.cps.sandbox.Invoker;
 import groovy.lang.Closure;
@@ -106,7 +108,7 @@ public class Builder {
     }
 
     private static final Block NULL = new ConstantBlock(null);
-    private static final LValueBlock THIS = new LocalVariableBlock("this");
+    private static final LValueBlock THIS = new LocalVariableBlock(null, "this");
     private static final Block JAVA_THIS = new JavaThisBlock();
 
     public Block null_() {
@@ -192,11 +194,15 @@ public class Builder {
     }
 
     public LValueBlock localVariable(String name) {
-        return new LocalVariableBlock(name);
+        return new LocalVariableBlock(null, name);
+    }
+
+    public LValueBlock localVariable(int line, String name) {
+        return new LocalVariableBlock(loc(line), name);
     }
 
     public Block setLocalVariable(int line, final String name, final Block rhs) {
-        return assign(line,localVariable(name),rhs);
+        return assign(line,localVariable(line, name),rhs);
     }
 
     public Block declareVariable(final Class type, final String name) {
@@ -214,6 +220,13 @@ public class Builder {
     }
 
     /**
+     * Block that's only valid as a LHS of a method call like {@code super.foo(...)}
+     */
+    public Block super_(Class senderType) {
+        return new SuperBlock(senderType);
+    }
+
+    /**
      * See {@link JavaThisBlock} for the discussion of {@code this} vs {@code javaThis}
      */
     public Block javaThis_() {
@@ -224,7 +237,7 @@ public class Builder {
      * Assignment operator to a local variable, such as {@code x += 3}
      */
     public Block localVariableAssignOp(int line, String name, String operator, Block rhs) {
-        return setLocalVariable(line, name, functionCall(line, localVariable(name), operator, rhs));
+        return setLocalVariable(line, name, functionCall(line, localVariable(line, name), operator, rhs));
     }
 
     /**
@@ -685,6 +698,10 @@ public class Builder {
 
     public CaseExpression case_(int line, Block matcher, Block body) {
         return new CaseExpression(loc(line), matcher, body);
+    }
+
+    public Block yield(Object o) {
+        return new YieldBlock(o);
     }
 
     private SourceLocation loc(int line) {

@@ -16,11 +16,13 @@ import org.codehaus.groovy.control.Janitor
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.control.customizers.CompilationCustomizer
 import org.codehaus.groovy.runtime.powerassert.SourceText
+import org.codehaus.groovy.syntax.SyntaxException
 import org.codehaus.groovy.syntax.Token
 
 import javax.annotation.Nonnull
 import java.lang.annotation.Annotation
 import java.lang.reflect.Modifier
+import java.util.concurrent.atomic.AtomicLong
 
 import static org.codehaus.groovy.syntax.Types.*
 
@@ -77,9 +79,10 @@ import static org.codehaus.groovy.syntax.Types.*
  * @author Kohsuke Kawaguchi
  */
 class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor {
-    private int iota=0;
+    private static final AtomicLong iota = new AtomicLong();
     private SourceUnit sourceUnit;
-    private TransformerConfiguration config = new TransformerConfiguration();
+    protected ClassNode classNode;
+    protected TransformerConfiguration config = new TransformerConfiguration();
 
     CpsTransformer() {
         super(CompilePhase.CANONICALIZATION)
@@ -91,10 +94,12 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
 
     @Override
     void call(SourceUnit source, GeneratorContext context, ClassNode classNode) {
-        this.sourceUnit = source;
-
         if (classNode.isInterface())
             return; // not touching interfaces
+
+        this.sourceUnit = source;
+        this.classNode = classNode;
+        try {
 
 //        copy(source.ast.methods)?.each { visitMethod(it) }
 //        classNode?.declaredConstructors?.each { visitMethod(it) } // can't transform constructor
@@ -111,6 +116,14 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
         if (classNode.getField(Verifier.__TIMESTAMP)==null)
             classNode.addField(Verifier.__TIMESTAMP,Modifier.STATIC|Modifier.PRIVATE, ClassHelper.long_TYPE,
             new ConstantExpression(0L));
+
+        classNode.addAnnotation(new AnnotationNode(WORKFLOW_TRANSFORMED_TYPE));
+
+        } finally {
+            this.sourceUnit = null;
+            this.classNode = null;
+            this.parent = null;
+        }
     }
 
     private <T> List<T> copy(List<T> t) {
@@ -122,7 +135,10 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
      * Should this method be transformed?
      */
     protected boolean shouldBeTransformed(MethodNode node) {
-        return !node.isSynthetic() && !hasAnnotation(node, NonCPS.class) && !hasAnnotation(node, WorkflowTransformed.class);
+        return !node.isSynthetic() &&
+                !hasAnnotation(node, NonCPS.class) &&
+                !hasAnnotation(node, WorkflowTransformed.class) &&
+                !node.isAbstract();
     }
 
     private boolean hasAnnotation(MethodNode node, Class<? extends Annotation> a) {
@@ -168,8 +184,11 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
         Expression body;
 
         // transform the body
-        parent = { e -> body=e }
-        m.code.visit(this)
+        parent = {
+            e -> body = e
+            // println "in $classNode.name transformed $m.typeDescriptor to $e.text"
+        }
+        visitWithSafepoint(m.code)
 
         def params = new ListExpression();
         m.parameters.each { params.addExpression(new ConstantExpression(it.name))}
@@ -181,7 +200,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
               }
          */
 
-        def cpsName = "___cps___${iota++}"
+        def cpsName = "___cps___${iota.getAndIncrement()}"
 
         def builderMethod = m.declaringClass.addMethod(cpsName, PRIVATE_STATIC_FINAL, FUNCTION_TYPE, new Parameter[0], new ClassNode[0],
             new BlockStatement([
@@ -279,6 +298,27 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
     }
 
     /**
+     * Like {@link #visit(ASTNode)} but also inserts the safepoint at the top.
+     */
+    protected void visitWithSafepoint(Statement st) {
+        if (config.safepoints.isEmpty()) {
+            visit(st);  // common case optimization
+        } else {
+            makeNode("block") {
+                // insert function call for each safepoint
+                config.safepoints.each { s ->
+                    makeNode("staticCall") {
+                        loc(st)
+                        literal(s.node)
+                        literal(s.methodName)
+                    }
+                }
+                visit(st)
+            }
+        }
+    }
+
+    /**
      * Makes an AST fragment that calls {@link Builder} with specific method.
      *
      * @param methodName
@@ -367,7 +407,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
                 makeNode("javaThis_")
             else
                 visit(call.objectExpression);
-            // TODO: spread
+            // TODO: spread (which will require safepoints)
             visit(call.method);
             literal(call.safe);
             visit(((TupleExpression)call.arguments).expressions)
@@ -389,7 +429,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
             makeNode("forLoop") {
                 literal(forLoop.statementLabel)
                 visit(loop.expressions)
-                visit(forLoop.loopBlock)
+                visitWithSafepoint(forLoop.loopBlock)
             }
         } else {
             // for (x in col) { ... }
@@ -399,7 +439,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
                 literal(forLoop.variableType)
                 literal(forLoop.variable.name)
                 visit(forLoop.collectionExpression)
-                visit(forLoop.loopBlock)
+                visitWithSafepoint(forLoop.loopBlock)
             }
         }
     }
@@ -408,7 +448,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
         makeNode("while_") {
             literal(loop.statementLabel)
             visit(loop.booleanExpression)
-            visit(loop.loopBlock)
+            visitWithSafepoint(loop.loopBlock)
         }
     }
 
@@ -416,7 +456,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
         makeNode("doWhile") {
             literal(loop.statementLabel)
             visit(loop.booleanExpression)
-            visit(loop.loopBlock)
+            visitWithSafepoint(loop.loopBlock)
         }
     }
 
@@ -650,7 +690,7 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
             }
             parent(types);
             parent(params)
-            visit(exp.code)
+            visitWithSafepoint(exp.code)
         }
     }
 
@@ -688,11 +728,21 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
 
     void visitPropertyExpression(PropertyExpression exp) {
         // TODO: spread
-        makeNode("property") {
-            loc(exp)
-            visit(exp.objectExpression)
-            visit(exp.property)
-            literal(exp.safe)
+        if (exp.objectExpression instanceof VariableExpression && exp.objectExpression.thisExpression &&
+                exp.property instanceof ConstantExpression && classNode.getSetterMethod('set' + Verifier.capitalize(exp.property.value), false) != null) {
+            makeNode("attribute") {
+                loc(exp)
+                visit(exp.objectExpression)
+                visit(exp.property)
+                literal(exp.safe)
+            }
+        } else {
+            makeNode("property") {
+                loc(exp)
+                visit(exp.objectExpression)
+                visit(exp.property)
+                literal(exp.safe)
+            }
         }
     }
 
@@ -744,16 +794,26 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
         if (ref instanceof VariableExpression /* local variable */
         ||  ref instanceof Parameter) {
             makeNode("localVariable") {
+                loc(exp)
                 literal(exp.name)
             }
         } else
         if (ref instanceof DynamicVariable
         ||  ref instanceof PropertyNode
         ||  ref instanceof FieldNode) {
-            makeNode("property") {
-                loc(exp)
-                makeNode("javaThis_")
-                literal(exp.name)
+            if (ref instanceof FieldNode && classNode.getGetterMethod('get' + Verifier.capitalize(exp.name)) != null) {
+                makeNode("attribute") {
+                    loc(exp)
+                    makeNode("javaThis_")
+                    visit(new ConstantExpression(exp.name))
+                    literal(false)
+                }
+            } else {
+                makeNode("property") {
+                    loc(exp)
+                    makeNode("javaThis_")
+                    literal(exp.name)
+                }
             }
         } else
         if (exp.name=="this") {
@@ -767,7 +827,12 @@ class CpsTransformer extends CompilationCustomizer implements GroovyCodeVisitor 
              */
             makeNode("this_")
         } else
-            throw new UnsupportedOperationException("Unexpected variable type: ${ref}");
+        if (exp.name=="super") {
+            makeNode("super_") {
+                literal(classNode)
+            }
+        } else
+            sourceUnit.addError(new SyntaxException("Unsupported expression for CPS transformation", exp.lineNumber, exp.columnNumber))
     }
 
     void visitDeclarationExpression(DeclarationExpression exp) {
