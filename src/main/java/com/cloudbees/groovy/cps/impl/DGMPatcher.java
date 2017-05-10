@@ -20,6 +20,7 @@ import org.codehaus.groovy.runtime.metaclass.NewInstanceMetaMethod;
 import org.codehaus.groovy.util.AbstractConcurrentMapBase;
 import org.codehaus.groovy.util.AbstractConcurrentMapBase.Segment;
 import org.codehaus.groovy.util.FastArray;
+import org.codehaus.groovy.util.ManagedConcurrentLinkedQueue;
 import org.codehaus.groovy.util.ManagedLinkedList;
 
 import java.lang.management.LockInfo;
@@ -252,9 +253,18 @@ class DGMPatcher {
                     Object item = itr.next();
                     if (patch(item) != item) {
                         LOGGER.log(WARNING, "Can't replace members of ManagedLinkedList", item);
-                    // TODO would be possible, if necessary, by calling ManagedLinkedList.Item.remove on *all* elements, then using ManagedLinkedList.add to recreate the entire list
+                        // TODO would be possible, if necessary, by calling ManagedLinkedList.Item.remove on *all* elements, then using ManagedLinkedList.add to recreate the entire list
                     }
                 }
+            } else if (o instanceof ManagedConcurrentLinkedQueue) {
+                for (Iterator itr = ((ManagedConcurrentLinkedQueue) o).iterator(); itr.hasNext(); ) {
+                    Object item = itr.next();
+                    if (patch(item) != item) {
+                        LOGGER.log(WARNING, "Can't replace members of ManagedConcurrentLinkedQueue", item);
+                        // TODO would be possible, if necessary, by calling ManagedConcurrentLinkedQueue.Element.remove on *all* elements, then using ManagedLinkedList.add to recreate the entire list
+                    }
+                }
+
             } else if (o instanceof Segment) {
                 try {
                     Segment s = (Segment) o;
