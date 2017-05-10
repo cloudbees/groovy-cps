@@ -474,6 +474,26 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
 """) == 155;
     }
 
+    @Test
+    void eachMapKV() {
+        assert evalCPS("""
+    def x = 100
+    def m = [a: 1, b: 2, c: 3];
+    m.each { k, v -> x += v }
+    return x;
+""") == 106;
+    }
+
+    @Test
+    void eachMapEntry() {
+        assert evalCPS("""
+    def x = 100
+    def m = [a: 1, b: 2, c: 3];
+    m.each { e -> x += e.getValue() }
+    return x;
+""") == 106;
+    }
+
     /**
      * Testing {@link CpsDefaultGroovyMethods} to ensure it doesn't kick in incorrectly
      * while processing synchronous code

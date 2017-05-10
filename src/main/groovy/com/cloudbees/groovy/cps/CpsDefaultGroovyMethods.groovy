@@ -81,4 +81,39 @@ public class CpsDefaultGroovyMethods {
 
         throw new CpsCallableInvocation(f,null,iter,closure);
     }
+
+    public static <K,V> Map<K,V> each(Map<K,V> map, Closure closure) {
+        if (!Caller.isAsynchronous(map, "each", closure)
+            && !Caller.isAsynchronous(CpsDefaultGroovyMethods.class, "each", map, closure)) {
+            return DefaultGroovyMethods.each(map,closure)
+        }
+
+        def b = new Builder(loc("each"))
+        def $iter = b.localVariable("iter")
+
+        def callBlock
+        if (closure.getMaximumNumberOfParameters() == 2) {
+            callBlock = b.block(
+                b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
+                b.declareVariable(3, Object.class, "key", b.functionCall(3, b.localVariable("argEntry"), "getKey")),
+                b.declareVariable(4, Object.class, "value", b.functionCall(4, b.localVariable("argEntry"), "getValue")),
+                b.functionCall(5, b.localVariable("closure"), "call", b.localVariable("key"), b.localVariable("value"))
+            )
+        } else {
+            callBlock = b.block(
+                b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
+                b.functionCall(3, b.localVariable("closure"), "call", b.localVariable("argEntry"))
+            )
+
+        }
+        def f = new CpsFunction(["iter", "closure"], b.block(
+            b.while_(null, b.functionCall(1, $iter, "hasNext"),
+                callBlock
+            ),
+            b.return_($iter)
+        ))
+
+        throw new CpsCallableInvocation(f, null, map.entrySet().iterator(), closure)
+    }
+
 }
