@@ -494,6 +494,22 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
 """) == 106;
     }
 
+    @Test
+    void collectList() {
+        assert evalCPS("""
+    return [1, 2, 3].collect { it * 2 }
+""") == [2, 4, 6]
+    }
+
+    @Test
+    void setEach() {
+        assert evalCPS("""
+    def x = 100
+    ([1,2,3] as HashSet).each { y -> x += y }
+    return x
+""") == 106
+    }
+
     /**
      * Testing {@link CpsDefaultGroovyMethods} to ensure it doesn't kick in incorrectly
      * while processing synchronous code
