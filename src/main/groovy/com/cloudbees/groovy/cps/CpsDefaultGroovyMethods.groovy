@@ -3,6 +3,8 @@ package com.cloudbees.groovy.cps
 import com.cloudbees.groovy.cps.impl.Caller
 import com.cloudbees.groovy.cps.impl.CpsCallableInvocation
 import com.cloudbees.groovy.cps.impl.CpsFunction
+import groovy.transform.stc.ClosureParams
+import groovy.transform.stc.FirstParam
 import org.codehaus.groovy.runtime.DefaultGroovyMethods
 import org.codehaus.groovy.runtime.InvokerHelper
 
@@ -132,16 +134,12 @@ public class CpsDefaultGroovyMethods {
         throw new CpsCallableInvocation(f, null, map.entrySet().iterator(), closure)
     }
 
-    public static <T> Collection<T> collect(Object self, Closure<T> transform) {
+    public static <T> List<T> collect(Object self, Closure<T> transform) {
         return _collect(self, new ArrayList<T>(), transform);
     }
 
-    public static <S, T> Collection<T> collect(Collection<S> self, Closure<T> transform) {
+    public static <S,T> List<T> collect(Collection<S> self, @ClosureParams(FirstParam.FirstGenericType.class) Closure<T> transform) {
         return _collect(self, new ArrayList<T>(), transform);
-    }
-
-    public static <S, T> List<T> collect(List<S> list, Closure<T> transform) {
-        return _collect(list, new ArrayList<T>(), transform);
     }
 
     public static Collection collect(Object self) {
@@ -160,10 +158,18 @@ public class CpsDefaultGroovyMethods {
         return _collect(self, collector, transform)
     }
 
+    public static <S, T> Collection<T> collect(List<S> self, Collection<T> collector, Closure<? extends T> transform) {
+        return _collect(self, collector, transform)
+    }
+
+    public static <S, T> List<T> collect(List<S> self, List<T> collector, Closure<? extends T> transform) {
+        return _collect(self, collector, transform)
+    }
+
     private static <T> Collection<T> _collect(Object self, Collection<T> collector, Closure<T> closure) {
-        if (!Caller.isAsynchronous(self, "collect", closure)
-            && !Caller.isAsynchronous(CpsDefaultGroovyMethods.class, "collect", self, closure))
+        if (isNotAsyncCollector(self, "collect", closure, collector)) {
             return DefaultGroovyMethods.collect(self, collector, closure);
+        }
 
         def b = new Builder(loc("collect"));
         def f = new CpsFunction(["self", "collector", "closure"], b.block(
@@ -180,9 +186,9 @@ public class CpsDefaultGroovyMethods {
     }
 
     public static <T> Collection<T> collect(Iterator<T> iter, Collection<T> collector, Closure closure) {
-        if (!Caller.isAsynchronous(iter, "collect", collector, closure)
-            && !Caller.isAsynchronous(CpsDefaultGroovyMethods.class, "collect", iter, collector, closure))
+        if (isNotAsyncCollector(iter, "collect", closure, collector)) {
             return DefaultGroovyMethods.collect(iter, collector, closure);
+        }
 
         def b = new Builder(loc("collect"));
         def $iter = b.localVariable("iter")
@@ -208,9 +214,8 @@ public class CpsDefaultGroovyMethods {
     }
 
     public static <T, K, V> Collection<T> collect(Map<K, V> self, Collection<T> collector, Closure<? extends T> transform) {
-        if (!Caller.isAsynchronous(self, "collect", collector, transform)
-            && !Caller.isAsynchronous(CpsDefaultGroovyMethods.class, "collect", self, collector, transform)) {
-            return DefaultGroovyMethods.collect(self, collector, transform)
+        if (isNotAsyncCollector(self, "collect", transform, collector)) {
+            return DefaultGroovyMethods.collect(self, collector, transform);
         }
 
         def b = new Builder(loc("collect"));
@@ -234,7 +239,6 @@ public class CpsDefaultGroovyMethods {
                     b.functionCall(3, b.localVariable("closure"), "call", b.localVariable("argEntry"))
                 )
             )
-
         }
 
         def f = new CpsFunction(["iter", "collector", "closure"], b.block(
@@ -248,5 +252,24 @@ public class CpsDefaultGroovyMethods {
 
         throw new CpsCallableInvocation(f, null, self.entrySet().iterator(), collector, transform);
 
+    }
+
+    // TODO: Probably rewrite this logic.
+    private static boolean isNotAsyncCollector(Object self, String methodName, Closure transform, Collection collector = null) {
+        if (Caller.isAsynchronous(self, methodName, transform)) {
+            return false
+        }
+        if (Caller.isAsynchronous(CpsDefaultGroovyMethods.class, methodName, self, transform)) {
+            return false
+        }
+        if (collector != null) {
+            if (Caller.isAsynchronous(self, methodName, collector, transform)) {
+                return false
+            }
+            if (Caller.isAsynchronous(CpsDefaultGroovyMethods.class, methodName, self, collector, transform)) {
+                return false
+            }
+        }
+        return true
     }
 }
