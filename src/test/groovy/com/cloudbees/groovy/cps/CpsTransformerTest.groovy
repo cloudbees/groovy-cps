@@ -739,6 +739,66 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
         assert evalCPS(codeAsMethod(collectMapEntryIntoExistingSetString)) == [1, 2, 3, 4] as HashSet
     }
 
+    private static final String collectEntriesKVString = """
+    def m = [a: 1, b: 2, c: 3]
+    return m.collectEntries { k, v -> [(k): v * 2] }
+"""
+
+    @Test
+    void collectEntriesKV() {
+        assert evalCPS(collectEntriesKVString) == [a: 2, b: 4, c: 6]
+    }
+
+    @Test
+    void syncCollectEntriesKV() {
+        assert evalCPS(codeAsMethod(collectEntriesKVString)) == [a: 2, b: 4, c: 6]
+    }
+
+    private static final String collectEntriesEntryString = """
+    def m = [a: 1, b: 2, c: 3]
+    return m.collectEntries { e -> [(e.getKey()): e.getValue() * 2] }
+"""
+
+    @Test
+    void collectEntriesEntry() {
+        assert evalCPS(collectEntriesEntryString) == [a: 2, b: 4, c: 6]
+    }
+
+    @Test
+    void syncCollectEntriesEntry() {
+        assert evalCPS(codeAsMethod(collectEntriesEntryString)) == [a: 2, b: 4, c: 6]
+    }
+
+    private static final String collectEntriesKVExistingMapString = """
+    def m = [b: 2, c: 3]
+    return m.collectEntries([a: 2]) { k, v -> [(k): v * 2] }
+"""
+
+    @Test
+    void collectEntriesKVExistingMap() {
+        assert evalCPS(collectEntriesKVExistingMapString) == [a: 2, b: 4, c: 6]
+    }
+
+    @Test
+    void syncCollectEntriesExistingMap() {
+        assert evalCPS(codeAsMethod(collectEntriesKVExistingMapString)) == [a: 2, b: 4, c: 6]
+    }
+
+    private static final String collectEntriesEntryExistingMapString = """
+    def m = [b: 2, c: 3]
+    return m.collectEntries([a: 2]) { e -> [(e.getKey()): e.getValue() * 2] }
+"""
+
+    @Test
+    void collectEntriesEntryExistingMap() {
+        assert evalCPS(collectEntriesEntryExistingMapString) == [a: 2, b: 4, c: 6]
+    }
+
+    @Test
+    void syncCollectEntriesExistingMapEntry() {
+        assert evalCPS(codeAsMethod(collectEntriesEntryExistingMapString)) == [a: 2, b: 4, c: 6]
+    }
+
     @Test
     void instanceOf() {
         assert evalCPS("null instanceof String")==false;

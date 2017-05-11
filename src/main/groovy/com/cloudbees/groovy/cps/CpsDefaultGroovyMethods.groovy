@@ -5,6 +5,7 @@ import com.cloudbees.groovy.cps.impl.CpsCallableInvocation
 import com.cloudbees.groovy.cps.impl.CpsFunction
 import groovy.transform.stc.ClosureParams
 import groovy.transform.stc.FirstParam
+import groovy.transform.stc.MapEntryOrKeyValue
 import org.codehaus.groovy.runtime.DefaultGroovyMethods
 import org.codehaus.groovy.runtime.InvokerHelper
 
@@ -109,24 +110,12 @@ public class CpsDefaultGroovyMethods {
         def b = new Builder(loc("each"))
         def $iter = b.localVariable("iter")
 
-        def callBlock
-        if (closure.getMaximumNumberOfParameters() == 2) {
-            callBlock = b.block(
-                b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
-                b.declareVariable(3, Object.class, "key", b.functionCall(3, b.localVariable("argEntry"), "getKey")),
-                b.declareVariable(4, Object.class, "value", b.functionCall(4, b.localVariable("argEntry"), "getValue")),
-                b.functionCall(5, b.localVariable("closure"), "call", b.localVariable("key"), b.localVariable("value"))
-            )
-        } else {
-            callBlock = b.block(
-                b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
-                b.functionCall(3, b.localVariable("closure"), "call", b.localVariable("argEntry"))
-            )
-
-        }
         def f = new CpsFunction(["iter", "closure"], b.block(
             b.while_(null, b.functionCall(1, $iter, "hasNext"),
-                callBlock
+                b.block(
+                    b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
+                    callClosureForMapEntry(b, b.localVariable("argEntry"), 3, closure)
+                ),
             ),
             b.return_($iter)
         ))
@@ -222,29 +211,52 @@ public class CpsDefaultGroovyMethods {
         def $iter = b.localVariable("iter")
         def $collector = b.localVariable("collector")
 
-        def callBlock
-        if (transform.getMaximumNumberOfParameters() == 2) {
-            callBlock = b.block(
-                b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
-                b.declareVariable(3, Object.class, "key", b.functionCall(3, b.localVariable("argEntry"), "getKey")),
-                b.declareVariable(4, Object.class, "value", b.functionCall(4, b.localVariable("argEntry"), "getValue")),
-                b.functionCall(5, $collector, "add",
-                    b.functionCall(5, b.localVariable("closure"), "call", b.localVariable("key"), b.localVariable("value"))
+        def f = new CpsFunction(["iter", "collector", "closure"], b.block(
+            b.while_(null, b.functionCall(1, $iter, "hasNext"),
+                b.block(
+                    callClosureForMapEntryAndAct(b, $iter, $collector, "add", 2, transform, b.localVariable("result"))
                 )
-            )
-        } else {
-            callBlock = b.block(
-                b.declareVariable(2, Map.Entry.class, "argEntry", b.functionCall(2, $iter, "next")),
-                b.functionCall(3, $collector, "add",
-                    b.functionCall(3, b.localVariable("closure"), "call", b.localVariable("argEntry"))
-                )
-            )
+            ),
+            b.return_($collector)
+        ));
+
+        throw new CpsCallableInvocation(f, null, self.entrySet().iterator(), collector, transform);
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private static <K, V> Map<K, V> createSimilarMap(Map<K, V> orig) {
+        if (orig instanceof SortedMap) {
+            return new TreeMap<K, V>(((SortedMap)orig).comparator());
         }
+        if (orig instanceof Properties) {
+            return (Map<K, V>) new Properties();
+        }
+        if (orig instanceof Hashtable) {
+            return new Hashtable<K, V>();
+        }
+        return new LinkedHashMap<K, V>();
+    }
+
+    public static <K,V> Map<?, ?> collectEntries(Map<K, V> self, @ClosureParams(MapEntryOrKeyValue.class) Closure<?> transform) {
+        return collectEntries(self, createSimilarMap(self), transform)
+    }
+
+    public static <K, V, S, T> Map<K, V> collectEntries(Map<S, T> self, Map<K, V> collector, @ClosureParams(MapEntryOrKeyValue.class) Closure<?> transform) {
+        if (isNotAsyncCollector(self, "collectEntries", transform, collector)) {
+            return DefaultGroovyMethods.collectEntries(self, collector, transform);
+        }
+
+        def b = new Builder(loc("collectEntries"));
+        def $iter = b.localVariable("iter")
+        def $collector = b.localVariable("collector")
 
         def f = new CpsFunction(["iter", "collector", "closure"], b.block(
             b.while_(null, b.functionCall(1, $iter, "hasNext"),
                 b.block(
-                    callBlock
+                    callClosureForMapEntryAndAct(b, $iter, $collector, "putAll", 2, transform,
+                        b.localVariable("result")
+                    )
                 )
             ),
             b.return_($collector)
@@ -254,19 +266,43 @@ public class CpsDefaultGroovyMethods {
 
     }
 
+    private static Block callClosureForMapEntry(Builder b, Block argEntry, int l, Closure<?> transform) {
+        if (transform.getMaximumNumberOfParameters() == 2) {
+            return b.functionCall(l, b.localVariable("closure"), "call",
+                b.functionCall(l, argEntry, "getKey"),
+                b.functionCall(l, argEntry, "getValue"))
+        } else {
+            return b.functionCall(l, b.localVariable("closure"), "call", argEntry)
+        }
+    }
+
+    private static Block callClosureForMapEntryAndAct(Builder b, Block iter, Block receiver, String method,
+                                                      int l, Closure<?> transform, Block... args) {
+        return b.block(
+            b.declareVariable(l, Map.Entry.class, "argEntry", b.functionCall(l, iter, "next")),
+            b.declareVariable(++l, Object.class, "result",
+                callClosureForMapEntry(b, b.localVariable("argEntry"), l, transform)),
+            b.functionCall(++l, receiver, method, args)
+        )
+    }
+
     // TODO: Probably rewrite this logic.
-    private static boolean isNotAsyncCollector(Object self, String methodName, Closure transform, Collection collector = null) {
+    private static boolean isNotAsyncCollector(Object self, String methodName, Closure transform, Object collector = null) {
         if (Caller.isAsynchronous(self, methodName, transform)) {
+            System.err.println("self/method/transform - async")
             return false
         }
         if (Caller.isAsynchronous(CpsDefaultGroovyMethods.class, methodName, self, transform)) {
+            System.err.println("cps/method/self/transform - async")
             return false
         }
         if (collector != null) {
             if (Caller.isAsynchronous(self, methodName, collector, transform)) {
+                System.err.println("self/method/collector/transform - async")
                 return false
             }
             if (Caller.isAsynchronous(CpsDefaultGroovyMethods.class, methodName, self, collector, transform)) {
+                System.err.println("cps/method/self/collector/transform - async")
                 return false
             }
         }
