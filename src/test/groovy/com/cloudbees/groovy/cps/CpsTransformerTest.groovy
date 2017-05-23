@@ -763,4 +763,27 @@ class CpsTransformerTest extends AbstractGroovyCpsTest {
         ''') == 'FOO';
     }
 
+    @Test
+    @Issue("https://github.com/cloudbees/groovy-cps/issues/48")
+    @NotYetImplemented
+    void nonCPSCallsCPSMethod() {
+        evalCPS('''
+            class Foo {
+                int count
+            
+                @NonCPS
+                static Foo create(int value) {
+                    def aList = [5,6,7,8].collect { new Foo(count: it) }
+                    return aList.find { it.matches(value) }
+                }
+                
+                boolean matches(int value) {
+                    count == value
+                }
+            }
+            
+            Foo.create(7)
+        ''')
+    }
+
 }
