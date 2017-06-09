@@ -95,7 +95,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import javax.annotation.Generated;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
@@ -239,16 +238,20 @@ public class Translator {
             });
             typeVars.put(name, typeVar);
         });
+
         JType type = t(e.getReturnType(), typeVars);
         delegating.type(type);
         m.type(type);
 
         List<JVar> delegatingParams = new ArrayList<>();
         List<JVar> params = new ArrayList<>();
+        Map<String,String> paramClasses = new HashMap<>();
+
         e.getParameters().forEach(p -> {
             JType paramType = t(p.asType(), typeVars);
             delegatingParams.add(e.isVarArgs() && p == e.getParameters().get(e.getParameters().size() - 1) ? delegating.varParam(paramType.elementType(), n(p)) : delegating.param(paramType, n(p)));
             params.add(m.param(paramType, n(p)));
+            paramClasses.put(n(p), paramType.erasure().name());
         });
 
         e.getThrownTypes().forEach(ex -> {
@@ -294,7 +297,9 @@ public class Translator {
         }
         delegatingParams.forEach(p -> delegateCall.arg(p));
 
-        JVar $b = m.body().decl($Builder, "b", JExpr._new($Builder).arg(JExpr.invoke("loc").arg(methodName)));
+        JVar untrustedB = m.body().decl($Builder, "untrustedB", JExpr._new($Builder).arg(JExpr.invoke("loc").arg(methodName)));
+        JVar $b = m.body().decl($Builder, "b", untrustedB.invoke("contextualize").arg(codeModel.ref("com.cloudbees.groovy.cps.sandbox.Trusted").staticRef("INSTANCE")));
+
         JInvocation f = JExpr._new($CpsFunction);
 
         // parameter names
@@ -332,10 +337,25 @@ public class Translator {
 
                 if (ms instanceof MemberSelectTree) {
                     MemberSelectTree mst = (MemberSelectTree) ms;
-                    inv = $b.invoke("functionCall")
+                    String receiver = mst.getExpression().toString();
+                    String methNm = n(mst.getIdentifier());
+
+                    JVar funcBuilder;
+                    // If we're calling anything other than Closure.call, use the trusted builder, which tags the
+                    // relevant block with Trusted, so we don't traverse the entire call stack with SandboxInvoker.
+                    // Otherwise, use the untrusted builder.
+                    if (paramClasses.getOrDefault(receiver, "null").equals("Closure") &&
+                            methNm.equals("call")) {
+                        funcBuilder = untrustedB;
+                    } else {
+                        funcBuilder = $b;
+                    }
+
+                    inv = funcBuilder.invoke("functionCall")
                         .arg(loc(mt))
                         .arg(visit(mst.getExpression()))
                         .arg(n(mst.getIdentifier()));
+
                 } else
                 if (ms instanceof JCIdent) {
                     // invocation without object selection, like  foo(bar,zot)
