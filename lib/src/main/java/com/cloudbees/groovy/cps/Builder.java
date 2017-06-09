@@ -41,7 +41,6 @@ import com.cloudbees.groovy.cps.impl.WhileBlock;
 import com.cloudbees.groovy.cps.impl.YieldBlock;
 import com.cloudbees.groovy.cps.sandbox.CallSiteTag;
 import com.cloudbees.groovy.cps.sandbox.Invoker;
-import com.cloudbees.groovy.cps.sandbox.Trusted;
 import groovy.lang.Closure;
 import org.codehaus.groovy.runtime.GStringImpl;
 import org.codehaus.groovy.runtime.ScriptBytecodeAdapter;
