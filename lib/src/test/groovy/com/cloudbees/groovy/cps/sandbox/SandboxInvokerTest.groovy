@@ -2,6 +2,7 @@ package com.cloudbees.groovy.cps.sandbox
 
 import com.cloudbees.groovy.cps.*
 import com.cloudbees.groovy.cps.impl.FunctionCallEnv
+import groovy.transform.NotYetImplemented
 import org.codehaus.groovy.runtime.ProxyGeneratorAdapter
 import org.junit.Before
 import org.junit.Test
@@ -379,4 +380,21 @@ SandboxInvokerTest$Base:staticOneArg(String)
 ''')
     }
 
+    @NotYetImplemented
+    @Issue("JENKINS-45904")
+    @Test
+    void toStringCoercion() {
+        assert evalCpsSandbox('''
+class X implements Serializable {
+  public String toString() {
+    return "some string"
+  }
+}
+
+def x = new X()
+return "${x}"
+''') == "some string"
+
+        // TODO: Add assertIntercept once this functionality works and we know the call stack
+    }
 }

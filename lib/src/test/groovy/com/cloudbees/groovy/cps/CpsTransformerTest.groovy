@@ -814,4 +814,20 @@ def b = new CpsTransformerTest.Base()
 return (b.&toString)() + (String.getClass().&getSimpleName)()
 ''') == "baseClass"
     }
+
+    @NotYetImplemented
+    @Issue("JENKINS-45904")
+    @Test
+    void toStringCoercion() {
+        assert evalCPS('''
+class X implements Serializable {
+  public String toString() {
+    return "some string"
+  }
+}
+
+def x = new X()
+return "${x}"
+''') == "some string"
+    }
 }
