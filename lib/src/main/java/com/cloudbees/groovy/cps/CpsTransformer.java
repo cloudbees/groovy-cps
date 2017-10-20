@@ -901,15 +901,40 @@ public class CpsTransformer extends CompilationCustomizer implements GroovyCodeV
 
     @Override
     public void visitMapExpression(final MapExpression exp) {
-        makeNode("map", new Runnable() {
-            @Override
-            public void run() {
-                for (MapEntryExpression e : exp.getMapEntryExpressions()) {
-                    visit(e.getKeyExpression());
-                    visit(e.getValueExpression());
+        makeMap(exp.getMapEntryExpressions());
+    }
+
+    private void makeMap(final List<MapEntryExpression> exprs) {
+        if (exprs.size() > 125) {
+            final List<MapEntryExpression> firstChunk = exprs.subList(0, 125);
+            final List<MapEntryExpression> secondChunk = exprs.subList(125, exprs.size());
+            makeNode("plus", new Runnable() {
+                @Override
+                public void run() {
+                    loc(firstChunk.get(0));
+                    makeNode("map", new Runnable() {
+                        @Override
+                        public void run() {
+                            for (MapEntryExpression e : firstChunk) {
+                                visit(e.getKeyExpression());
+                                visit(e.getValueExpression());
+                            }
+                        }
+                    });
+                    makeMap(secondChunk);
                 }
-            }
-        });
+            });
+        } else {
+            makeNode("map", new Runnable() {
+                @Override
+                public void run() {
+                    for (MapEntryExpression e : exprs) {
+                        visit(e.getKeyExpression());
+                        visit(e.getValueExpression());
+                    }
+                }
+            });
+        }
     }
 
     @Override
@@ -919,12 +944,34 @@ public class CpsTransformer extends CompilationCustomizer implements GroovyCodeV
 
     @Override
     public void visitListExpression(final ListExpression exp) {
-        makeNode("list", new Runnable() {
-            @Override
-            public void run() {
-                visit(exp.getExpressions());
-            }
-        });
+        makeList(exp.getExpressions());
+    }
+
+    private void makeList(final List<Expression> exprs) {
+        if (exprs.size() > 250) {
+            final List<Expression> firstChunk = exprs.subList(0, 250);
+            final List<Expression> secondChunk = exprs.subList(250, exprs.size());
+            makeNode("plus", new Runnable() {
+                @Override
+                public void run() {
+                    loc(firstChunk.get(0));
+                    makeNode("list", new Runnable() {
+                        @Override
+                        public void run() {
+                            visit(firstChunk);
+                        }
+                    });
+                    makeList(secondChunk);
+                }
+            });
+        } else {
+            makeNode("list", new Runnable() {
+                @Override
+                public void run() {
+                    visit(exprs);
+                }
+            });
+        }
     }
 
     @Override
