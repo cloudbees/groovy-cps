@@ -877,4 +877,30 @@ def (c, d) = ['fourth']
 return [a, b, c, d].join(' ')
 ''') == "first second fourth null"
     }
+
+    @Issue("JENKINS-47363")
+    @Test
+    void bigList() {
+        def l = 0..300
+        def s = l.join(",")
+        assert evalCPS("""
+def b = [
+${s}
+]
+return b.size()
+""") == 301
+    }
+
+    @Issue("JENKINS-47363")
+    @Test
+    void bigMap() {
+        def l = 0..300
+        def s = l.collect { "${it}:${it}" }.join(",\n")
+        assert evalCPS("""
+def b = [
+${s}
+]
+return b.size()
+""") == 301
+    }
 }
