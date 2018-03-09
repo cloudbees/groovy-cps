@@ -947,4 +947,20 @@ return a + b + c + d
 ''') == 'firstsecondthirdfourth'
     }
 
+    @Issue("JENKINS-50038")
+    @Test
+    void cpsTransformedToStringInGString() {
+        assert evalCPS('''
+class Foo implements Serializable {
+    public String toString() {
+        return "Foo."
+    }
+}
+
+def foo = new Foo()
+
+return "Class is: ${foo}"
+''') == "Class is: Foo."
+    }
+
 }

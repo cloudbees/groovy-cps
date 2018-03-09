@@ -1167,7 +1167,20 @@ public class CpsTransformer extends CompilationCustomizer implements GroovyCodeV
                 makeNode("list", new Runnable() {
                     @Override
                     public void run() {
-                        visit(exp.getValues());
+                        for (final Expression vExp : exp.getValues()) {
+                            if (vExp instanceof ConstantExpression || vExp instanceof ClosureExpression) {
+                                visit(vExp);
+                            } else {
+                                makeNode("functionCall", new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        loc(vExp);
+                                        visit(vExp);
+                                        literal("toString");
+                                    }
+                                });
+                            }
+                        }
                     }
                 });
                 makeNode("list", new Runnable() {
