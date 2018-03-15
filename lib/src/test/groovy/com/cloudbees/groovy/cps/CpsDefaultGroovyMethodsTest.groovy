@@ -296,8 +296,8 @@ class CpsDefaultGroovyMethodsTest extends AbstractGroovyCpsTest {
             // .toSorted
             ["toSortedList", "[3, 1, -2, -4].toSorted { i -> i * i }", [1, -2, 3, -4]],
             ["toSortedArray", "([3, 1, -2, -4] as Integer[]).toSorted { i -> i * i }", [1, -2, 3, -4]],
-            ["toSortedMapEntryByKey", "[a: 3, c: 1, b: -2, d: -4].toSorted { e -> e.key }", [a: 3, b: -2, c: 1, d: -4]],
-            ["toSortedMapEntryByValue", "[a: 3, c: 1, b: -2, d: -4].toSorted { e -> e.value }", [d: -4, b: -2, c: 1, a: 3]],
+            ["toSortedMapEntryByKey", "[a: 3, c: 1, b: -2, d: -4].toSorted { e -> e.key }.keySet().toList()", [a: 3, b: -2, c: 1, d: -4].keySet().toList()],
+            ["toSortedMapEntryByValue", "[a: 3, c: 1, b: -2, d: -4].toSorted { e -> e.value }.keySet().toList()", [d: -4, b: -2, c: 1, a: 3].keySet().toList()],
 
             /* TODO: Still needs ToUniqueIterator/UniqueIterator. It changed. More fun.
             // .toUnique
