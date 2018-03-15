@@ -854,6 +854,10 @@ public class Translator {
     private JExpression cpsTypeTranslation(JType original) {
         if (original.fullName().equals("org.codehaus.groovy.runtime.callsite.BooleanClosureWrapper")) {
             return codeModel.ref("com.cloudbees.groovy.cps.impl.CpsBooleanClosureWrapper").dotclass();
+        } else if (original.fullName().startsWith("groovy.util.OrderBy")) {
+            return codeModel.ref("com.cloudbees.groovy.cps.impl.CpsOrderBy").dotclass();
+        } else if (original.fullName().startsWith("groovy.util.ClosureComparator")) {
+            return codeModel.ref("com.cloudbees.groovy.cps.impl.CpsClosureComparator").dotclass();
         } else {
             return original.dotclass();
         }

@@ -24,7 +24,7 @@ class CpsDefaultGroovyMethodsTest extends AbstractGroovyCpsTest {
         def rawTests = [
             // .any
             ["any", "return [0, 1, 2].any { i -> i == 1 }", true],
-            ["anyMapKV", "return [a: 0, b: 1, c: 2].any { k, v -> v == 1 }", true],
+            ["anyMapKV", "def cl = { g, h -> g + h }; assert cl.call(5, 10) == 15; return [a: 0, b: 1, c: 2].any { k, v -> v == 1 }", true],
             ["anyMapEntry", "return [a: 0, b: 1, c: 2].any { e -> e.value == 1 }", true],
             ["anyFalse", "return [0, 1, 2].any { i -> i > 2 }", false],
 
@@ -238,18 +238,14 @@ class CpsDefaultGroovyMethodsTest extends AbstractGroovyCpsTest {
             // .max
             ["maxList", "[42, 35, 17, 100].max {i -> i.toString().toList().collect {it.toInteger()}.sum() }", 35],
             ["maxArray", "([42, 35, 17, 100] as Integer[]).max { i -> i.toString().toList().collect {it.toInteger()}.sum() }", 35],
-            /* TODO ClosureComparator
             ["maxMap", "[a: 42, b: 35, c: 17, d: 100].max { first, second -> first.value.toString().toList().collect {it.toInteger()}.sum() <=> second.value.toString().toList().collect {it.toInteger()}.sum() }", [b: 35].entrySet().iterator().next()],
-            */
 
             // TODO: metaClass
 
             // .min
             ["minList", "[42, 35, 17, 100].min { i -> i.toString().toList().collect {it.toInteger()}.sum() }", 100],
             ["minArray", "([42, 35, 17, 100] as Integer[]).min { i -> i.toString().toList().collect {it.toInteger()}.sum() }", 100],
-            /* TODO ClosureComparator
             ["minMap", "[a: 42, b: 35, c: 17, d: 100].min { first, second -> first.value.toString().toList().collect {it.toInteger()}.sum() <=> second.value.toString().toList().collect {it.toInteger()}.sum() }", [d: 100].entrySet().iterator().next()],
-            */
 
             // .permutations
             ["permutations", "[1, 2, 3].permutations { i -> i.collect { v -> v * 2 } } as Set", [[2, 4, 6], [2, 6, 4], [4, 2, 6], [4, 6, 2], [6, 2, 4], [6, 4, 2]] as Set],
@@ -268,13 +264,11 @@ class CpsDefaultGroovyMethodsTest extends AbstractGroovyCpsTest {
             ["reverseEachMapKV", "def r = ''; ['a': 1, 'b': 2, 'c': 3].reverseEach { k, v -> r += k }; return r", "cba"],
             ["reverseEachMapEntry", "def r = ''; ['a': 1, 'b': 2, 'c': 3].reverseEach { e -> r += e.key }; return r", "cba"],
 
-            /* TODO would need to translate OrderBy and ClosureComparator
             // .sort
             ["sortList", "[3, 1, -2, -4].sort { i -> i * i }", [1, -2, 3, -4]],
             ["sortArray", "([3, 1, -2, -4] as Integer[]).sort { i -> i * i }", [1, -2, 3, -4]],
-            ["sortMapEntryByKey", "[a: 3, c: 1, b: -2, d: -4].sort { e -> e.key }", [a: 3, b: -2, c: 1, d: -4]],
-            ["sortMapEntryByValue", "[a: 3, c: 1, b: -2, d: -4].sort { e -> e.value }", [d: -4, b: -2, c: 1, a: 3]],
-            */
+            ["sortMapEntryByKey", "[a: 3, c: 1, b: -2, d: -4].sort { e -> e.key }.keySet().toList()", [a: 1, b:2, c: 3, d:4].keySet().toList()],
+            ["sortMapEntryByValue", "[a: 3, c: 1, b: -2, d: -4].sort { e -> e.value }.keySet().toList()", [d: -4, b: -2, c: 1, a: 3].keySet().toList()],
 
             // .split
             ["splitList", "[1, 2, 3, 4].split { i -> i % 2 == 0 }", [[2, 4], [1, 3]]],
@@ -299,26 +293,22 @@ class CpsDefaultGroovyMethodsTest extends AbstractGroovyCpsTest {
 
             // TODO: times
 
-            /* TODO as above
             // .toSorted
             ["toSortedList", "[3, 1, -2, -4].toSorted { i -> i * i }", [1, -2, 3, -4]],
             ["toSortedArray", "([3, 1, -2, -4] as Integer[]).toSorted { i -> i * i }", [1, -2, 3, -4]],
             ["toSortedMapEntryByKey", "[a: 3, c: 1, b: -2, d: -4].toSorted { e -> e.key }", [a: 3, b: -2, c: 1, d: -4]],
             ["toSortedMapEntryByValue", "[a: 3, c: 1, b: -2, d: -4].toSorted { e -> e.value }", [d: -4, b: -2, c: 1, a: 3]],
-            */
 
-            /* TODO: waiting for toUnique support
+            /* TODO: Still needs ToUniqueIterator/UniqueIterator. It changed. More fun.
             // .toUnique
             ["toUniqueList", "[1, 2, -2, 3].toUnique { i -> i * i }", [1, 2, 3]],
             ["toUniqueArray", "([1, 2, -2, 3] as Integer[]).toUnique { i -> i * i }", [1, 2, 3]],
             ["toUniqueSet", "([1, 2, -2, 3] as HashSet).toUnique { i -> i * i }", [1, 2, 3] as HashSet],
             */
 
-            /* TODO also relies on OrderBy & ClosureComparator
             // .unique
             ["uniqueList", "[1, 2, -2, 3].unique { i -> i * i }", [1, 2, 3]],
             ["uniqueSet", "([1, 2, -2, 3] as HashSet).unique { i -> i * i }.collect { it.abs() } as HashSet", [1, 2, 3] as HashSet],
-            */
 
             // TODO: use?
 

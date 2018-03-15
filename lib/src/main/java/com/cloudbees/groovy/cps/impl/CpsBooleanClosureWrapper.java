@@ -23,7 +23,11 @@ public class CpsBooleanClosureWrapper implements Serializable {
      * normal closure call
      */
     public boolean call(Object... args) {
-        return new BooleanClosureWrapper(wrapped).call(args);
+        if (wrapped instanceof CpsClosure) {
+            return new CpsDelegatingClosure((CpsClosure) wrapped).isCase(args);
+        } else {
+            return new BooleanClosureWrapper(wrapped).call(args);
+        }
     }
 
     /**
@@ -32,6 +36,14 @@ public class CpsBooleanClosureWrapper implements Serializable {
      * give in the key and value.
      */
     public <K,V> boolean callForMap(Map.Entry<K, V> entry) {
-        return new BooleanClosureWrapper(wrapped).callForMap(entry);
+        if (wrapped instanceof CpsClosure) {
+            if (wrapped.getMaximumNumberOfParameters() == 2) {
+                return call(entry.getKey(), entry.getValue());
+            } else {
+                return call(entry);
+            }
+        } else {
+            return new BooleanClosureWrapper(wrapped).callForMap(entry);
+        }
     }
 }
