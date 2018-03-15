@@ -27,7 +27,7 @@ class CpsDefaultGroovyMethodsTest extends AbstractGroovyCpsTest {
             ["anyMapKV", "return [a: 0, b: 1, c: 2].any { k, v -> v == 1 }", true],
             ["anyMapEntry", "return [a: 0, b: 1, c: 2].any { e -> e.value == 1 }", true],
             ["anyFalse", "return [0, 1, 2].any { i -> i > 2 }", false],
-            ["anyMapKVFalse", "return [a: 0, b: 1, c: 2].any { k, v -> v == 3 }", true],
+            ["anyMapKVFalse", "return [a: 0, b: 1, c: 2].any { k, v -> v == 3 }", false],
 
             // TODO: asType?
 
