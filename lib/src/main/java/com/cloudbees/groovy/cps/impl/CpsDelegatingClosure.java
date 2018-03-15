@@ -52,7 +52,7 @@ public class CpsDelegatingClosure extends Closure {
     @Override
     public Object call(Object... args) {
         try {
-            cpsClosure.call(args);
+            return cpsClosure.call(args);
         } catch (CpsCallableInvocation inv) {
             Continuable continuable = new Continuable(inv.asBlock());
             Outcome o = continuable.run0(new Outcome(null, null), Continuable.categories);
@@ -62,7 +62,6 @@ public class CpsDelegatingClosure extends Closure {
                 throw new RuntimeException(o.getAbnormal());
             }
         }
-        return null;
     }
 
     @Override
