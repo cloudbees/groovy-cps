@@ -60,6 +60,10 @@ public class CpsCallableInvocation extends Error/*not really an error but we wan
     void checkMismatch(Object expectedReceiver, List<String> expectedMethodNames) {
         String expectedMethodName = expectedMethodNames.get(0);
         
+        if (call == SuspendBlock.SUSPEND) {
+            return;
+        }
+
         if (expectedReceiver instanceof MetaClass && expectedMethodName.equals("invokeMethod")) {
             return; 
         }
