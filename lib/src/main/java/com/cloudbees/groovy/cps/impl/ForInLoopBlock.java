@@ -39,7 +39,7 @@ public class ForInLoopBlock implements Block {
         final Continuation loopEnd;
         final Env e;
 
-        Iterator itr;
+        transient Iterator itr;
 
         ContinuationImpl(Env _e, Continuation loopEnd) {
             this.e = new LoopBlockScopeEnv(_e,label,loopEnd,increment.bind(this),1);
