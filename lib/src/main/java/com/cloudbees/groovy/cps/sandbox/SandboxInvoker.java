@@ -12,8 +12,8 @@ import org.kohsuke.groovy.sandbox.impl.SandboxedMethodClosure;
  *
  * @author Kohsuke Kawaguchi
  */
-public class SandboxInvoker implements Invoker {
-    public Object methodCall(Object receiver, String method, Object[] args) throws Throwable {
+public class SandboxInvoker extends InvokerInterceptor {
+    public Object doMethodCall(Object receiver, String method, Object[] args) throws Throwable {
         return Checker.checkedCall(receiver,false,false,method,args);
     }
 

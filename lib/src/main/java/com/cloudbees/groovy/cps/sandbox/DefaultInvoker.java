@@ -14,8 +14,8 @@ import org.codehaus.groovy.runtime.callsite.CallSiteArray;
  *
  * @author Kohsuke Kawaguchi
  */
-public class DefaultInvoker implements Invoker {
-    public Object methodCall(Object receiver, String method, Object[] args) throws Throwable {
+public class DefaultInvoker extends InvokerInterceptor {
+    public Object doMethodCall(Object receiver, String method, Object[] args) throws Throwable {
         CallSite callSite = fakeCallSite(method);
         Object v = callSite.call(receiver,args);
         return v;
