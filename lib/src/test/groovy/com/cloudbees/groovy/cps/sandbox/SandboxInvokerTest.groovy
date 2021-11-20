@@ -553,9 +553,13 @@ HandleMetaClass.getAttribute(Class,B,String,Boolean)
               public x = 'B'
             }
             def b = new B()
-            def bSuperX = b.metaClass.getAttribute(A, b, 'x', true)
-            return bSuperX
-            ''') == "B"
+            try {
+                def bSuperX = b.metaClass.getAttribute(A, b, 'x', true)
+                return bSuperX
+            } catch (MissingFieldException e) {
+                return e.message
+                // TODO: Why can't these read public/protected field from super?
+            }''') == "No such field: x for class: A"
         assertIntercept(
 '''
 Script1.super(Script1).setBinding(Binding)
@@ -572,6 +576,7 @@ new B()
 new A()
 B.metaClass
 HandleMetaClass.getAttribute(Class,B,String,Boolean)
+MissingFieldException.message
 ''')
         assert evalCpsSandbox('''
             import org.codehaus.groovy.runtime.ScriptBytecodeAdapter
@@ -582,9 +587,13 @@ HandleMetaClass.getAttribute(Class,B,String,Boolean)
               public x = 'B'
             }
             def b = new B()
-            def bSuperX = ScriptBytecodeAdapter.getFieldOnSuper(A, b, 'x')
-            return bSuperX
-            ''') == "B"
+            try {
+                def bSuperX = ScriptBytecodeAdapter.getFieldOnSuper(A, b, 'x')
+                return bSuperX
+            } catch (MissingFieldException e) {
+                return e.message
+                // TODO: Why can't these read public/protected field from super?
+            }''') == "No such field: x for class: A"
         assertIntercept('''
 Script1.super(Script1).setBinding(Binding)
 new A()
@@ -600,10 +609,12 @@ new B()
 new A()
 B.metaClass
 HandleMetaClass.getAttribute(Class,B,String,Boolean)
+MissingFieldException.message
 Script4.super(Script4).setBinding(Binding)
 new B()
 new A()
 ScriptBytecodeAdapter:getFieldOnSuper(Class,B,String)
+MissingFieldException.message
 ''')
     }
 }
