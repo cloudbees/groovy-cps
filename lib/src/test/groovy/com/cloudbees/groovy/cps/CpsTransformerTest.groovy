@@ -1020,6 +1020,16 @@ return ["a", "b", "c"]*.hashCode()''') == "hi"
     }
 
     @Test
+    void spreadMethodArguments() {
+        assert evalCPS('''
+int sum(int x, int y, int z) {
+    x+y+z
+}
+def args = [1,2]
+return sum(*args, 3)''') == 6
+    }
+
+    @Test
     void synchronizedStatement() {
         try {
             assert evalCPS('''
@@ -1032,27 +1042,17 @@ synchronized(this) { return 1 }''') == "hi"
 
     @Test
     void spreadExpression() {
-        try {
-            assert evalCPS('''
+        assert evalCPS('''
 def x = [1, 2, 3]
 return [*x, 4, 5]
-''') == "hi"
-        } catch (Exception e) {
-            assert e instanceof MultipleCompilationErrorsException
-            assert e.message.contains('spread not yet supported for CPS transformation')
-        }
+''') == [1, 2, 3, 4, 5]
     }
 
     @Test
     void spreadMapExpression() {
-        try {
-            assert evalCPS('''
+        assert evalCPS('''
 def x = [a: 1, b: 2, c: 3]
-return [*:x, d: 4, e: 5]
-''') == "hi"
-        } catch (Exception e) {
-            assert e instanceof MultipleCompilationErrorsException
-            assert e.message.contains('spread map not yet supported for CPS transformation')
-        }
+return [*:x, c: 4, e: 5]
+''') == [a:1, b:2, c:4, e:5]
     }
 }

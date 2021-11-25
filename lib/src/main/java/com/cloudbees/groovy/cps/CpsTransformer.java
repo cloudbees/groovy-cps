@@ -826,8 +826,7 @@ public class CpsTransformer extends CompilationCustomizer implements GroovyCodeV
     }
 
     /**
-     * @see
-     * org.codehaus.groovy.classgen.asm.BinaryExpressionHelper#eval(BinaryExpression)
+     * @see org.codehaus.groovy.classgen.asm.BinaryExpressionHelper#eval(BinaryExpression)
      */
     @Override
     public void visitBinaryExpression(final BinaryExpression exp) {
@@ -1220,15 +1219,23 @@ public class CpsTransformer extends CompilationCustomizer implements GroovyCodeV
     }
 
     @Override
-    public void visitSpreadExpression(SpreadExpression expression) {
-        sourceUnit.addError(new SyntaxException("spread not yet supported for CPS transformation",
-                expression.getLineNumber(), expression.getColumnNumber()));
+    public void visitSpreadExpression(final SpreadExpression expression) {
+        makeNode("spreadList", new Runnable() {
+            @Override
+            public void run() {
+                visit(expression.getExpression());
+            }
+        });
     }
 
     @Override
-    public void visitSpreadMapExpression(SpreadMapExpression expression) {
-        sourceUnit.addError(new SyntaxException("spread map not yet supported for CPS transformation",
-                expression.getLineNumber(), expression.getColumnNumber()));
+    public void visitSpreadMapExpression(final SpreadMapExpression expression) {
+        makeNode("spreadMap", new Runnable() {
+            @Override
+            public void run() {
+                visit(expression.getExpression());
+            }
+        });
     }
 
     @Override

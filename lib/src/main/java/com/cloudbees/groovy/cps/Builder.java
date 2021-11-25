@@ -31,6 +31,8 @@ import com.cloudbees.groovy.cps.impl.PropertyAccessBlock;
 import com.cloudbees.groovy.cps.impl.ReturnBlock;
 import com.cloudbees.groovy.cps.impl.SequenceBlock;
 import com.cloudbees.groovy.cps.impl.SourceLocation;
+import com.cloudbees.groovy.cps.impl.SpreadListBlock;
+import com.cloudbees.groovy.cps.impl.SpreadMapBlock;
 import com.cloudbees.groovy.cps.impl.StaticFieldBlock;
 import com.cloudbees.groovy.cps.impl.SuperBlock;
 import com.cloudbees.groovy.cps.impl.SwitchBlock;
@@ -328,6 +330,14 @@ public class Builder {
 
     public Block map(List<Block> blocks) {
         return map(blocks.toArray(new Block[blocks.size()]));
+    }
+
+    public Block spreadMap(Block block) {
+        return new SpreadMapBlock(block);
+    }
+
+    public Block spreadList(Block block) {
+        return new SpreadListBlock(block);
     }
 
     public Block staticCall(int line, Class lhs, String name, Block... argExps) {

@@ -60,7 +60,7 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
 
         Object lhs;
         String name;
-        Object[] args = new Object[argExps.length];
+        List<Object> args = new ArrayList<>();
         int idx;
 
         ContinuationImpl(Env e, Continuation k) {
@@ -79,7 +79,12 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
         }
 
         public Next fixArg(Object v) {
-            args[idx++] = v;
+            if (v instanceof SpreadList) {
+                args.addAll((SpreadList) v);
+            } else {
+                args.add(v);
+            }
+            idx++;
             return dispatchOrArg();
         }
 
@@ -87,14 +92,14 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
          * If there are more arguments to evaluate, do so. Otherwise evaluate the function.
          */
         private Next dispatchOrArg() {
-            if (args.length>idx)
+            if (argExps.length > idx)
                 return then(argExps[idx],e,fixArg);
             else {
                 if (name.equals("<init>")) {
                     // constructor call
                     Object v;
                     try {
-                        v = e.getInvoker().contextualize(FunctionCallBlock.this).constructorCall((Class)lhs,args);
+                        v = e.getInvoker().contextualize(FunctionCallBlock.this).constructorCall((Class)lhs, args.toArray());
                     } catch (Throwable t) {
                         if (t instanceof CpsCallableInvocation) {
                             ((CpsCallableInvocation) t).checkMismatch(lhs, Collections.singletonList(name));
@@ -110,7 +115,7 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
                     if (safe && lhs == null) {
                         return k.receive(null);
                     } else {
-                        return methodCall(e, loc, k, FunctionCallBlock.this, lhs, name, args);
+                        return methodCall(e, loc, k, FunctionCallBlock.this, lhs, name, args.toArray());
                     }
                 }
             }
