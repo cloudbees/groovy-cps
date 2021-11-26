@@ -67,7 +67,7 @@ class SpreadMapBlockTest extends AbstractGroovyCpsTest {
         assertEquals([a: 'hello'], result)
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test(expected = NullPointerException)
     void spreadNull() {
         evalCPS("""
             def y = null

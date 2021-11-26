@@ -1023,9 +1023,9 @@ return ["a", "b", "c"]*.hashCode()''') == "hi"
     void spreadMethodArguments() {
         assert evalCPS('''
 int sum(int x, int y, int z) {
-    x+y+z
+    return x + y + z
 }
-def args = [1,2]
+def args = [1, 2]
 return sum(*args, 3)''') == 6
     }
 
