@@ -506,4 +506,104 @@ return a + b + c + d
         }
     }
 
+    @Issue("JENKINS-65237")
+    @Test
+    void testGetFieldOnSuper() {
+        assert evalCpsSandbox('''
+            class A {
+              public x = 'A'
+            }
+            def a = new A()
+            def ax = a.metaClass.getAttribute(A, a, 'x', false)
+            return ax
+            ''') == "A"
+        assertIntercept('''
+Script1.super(Script1).setBinding(Binding)
+new A()
+A.metaClass
+HandleMetaClass.getAttribute(Class,A,String,Boolean)
+''')
+        assert evalCpsSandbox('''
+            class A {
+              public x = 'A'
+            }
+            class B extends A {
+              public x = 'B'
+            }
+            def b = new B()
+            def bx = b.metaClass.getAttribute(B, b, 'x', false)
+            return bx
+            ''') == "B"
+        assertIntercept('''
+Script1.super(Script1).setBinding(Binding)
+new A()
+A.metaClass
+HandleMetaClass.getAttribute(Class,A,String,Boolean)
+Script2.super(Script2).setBinding(Binding)
+new B()
+new A()
+B.metaClass
+HandleMetaClass.getAttribute(Class,B,String,Boolean)
+''')
+        assert evalCpsSandbox('''
+            class A {
+              public x = 'A'
+            }
+            class B extends A {
+              public x = 'B'
+            }
+            def b = new B()
+            def bSuperX = b.metaClass.getAttribute(A, b, 'x', true)
+            return bSuperX
+            ''') == "B"
+        assertIntercept(
+'''
+Script1.super(Script1).setBinding(Binding)
+new A()
+A.metaClass
+HandleMetaClass.getAttribute(Class,A,String,Boolean)
+Script2.super(Script2).setBinding(Binding)
+new B()
+new A()
+B.metaClass
+HandleMetaClass.getAttribute(Class,B,String,Boolean)
+Script3.super(Script3).setBinding(Binding)
+new B()
+new A()
+B.metaClass
+HandleMetaClass.getAttribute(Class,B,String,Boolean)
+''')
+        assert evalCpsSandbox('''
+            import org.codehaus.groovy.runtime.ScriptBytecodeAdapter
+            class A {
+              public x = 'A'
+            }
+            class B extends A {
+              public x = 'B'
+            }
+            def b = new B()
+            def bSuperX = ScriptBytecodeAdapter.getFieldOnSuper(A, b, 'x')
+            return bSuperX
+            ''') == "B"
+        assertIntercept('''
+Script1.super(Script1).setBinding(Binding)
+new A()
+A.metaClass
+HandleMetaClass.getAttribute(Class,A,String,Boolean)
+Script2.super(Script2).setBinding(Binding)
+new B()
+new A()
+B.metaClass
+HandleMetaClass.getAttribute(Class,B,String,Boolean)
+Script3.super(Script3).setBinding(Binding)
+new B()
+new A()
+B.metaClass
+HandleMetaClass.getAttribute(Class,B,String,Boolean)
+Script4.super(Script4).setBinding(Binding)
+new B()
+new A()
+ScriptBytecodeAdapter:getFieldOnSuper(Class,B,String)
+''')
+    }
 }
