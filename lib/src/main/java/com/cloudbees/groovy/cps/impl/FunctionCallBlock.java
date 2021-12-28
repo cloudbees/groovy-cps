@@ -60,7 +60,7 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
 
         Object lhs;
         String name;
-        List<Object> args = new ArrayList<>();
+        Object[] args = new Object[argExps.length];
         int idx;
 
         ContinuationImpl(Env e, Continuation k) {
@@ -79,12 +79,7 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
         }
 
         public Next fixArg(Object v) {
-            if (v instanceof SpreadList) {
-                args.addAll((SpreadList) v);
-            } else {
-                args.add(v);
-            }
-            idx++;
+            args[idx++] = v;
             return dispatchOrArg();
         }
 
@@ -95,11 +90,21 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
             if (argExps.length > idx)
                 return then(argExps[idx],e,fixArg);
             else {
+                // Spread arguments if needed
+                List<Object> argsSpreaded = new ArrayList<>();
+                for (Object o : args) {
+                    if (o instanceof SpreadList) {
+                        argsSpreaded.addAll((SpreadList) o);
+                    } else {
+                        argsSpreaded.add(o);
+                    }
+                }
+
                 if (name.equals("<init>")) {
                     // constructor call
                     Object v;
                     try {
-                        v = e.getInvoker().contextualize(FunctionCallBlock.this).constructorCall((Class)lhs, args.toArray());
+                        v = e.getInvoker().contextualize(FunctionCallBlock.this).constructorCall((Class)lhs, argsSpreaded.toArray());
                     } catch (Throwable t) {
                         if (t instanceof CpsCallableInvocation) {
                             ((CpsCallableInvocation) t).checkMismatch(lhs, Collections.singletonList(name));
@@ -115,7 +120,7 @@ public class FunctionCallBlock extends CallSiteBlockSupport {
                     if (safe && lhs == null) {
                         return k.receive(null);
                     } else {
-                        return methodCall(e, loc, k, FunctionCallBlock.this, lhs, name, args.toArray());
+                        return methodCall(e, loc, k, FunctionCallBlock.this, lhs, name, argsSpreaded.toArray());
                     }
                 }
             }
